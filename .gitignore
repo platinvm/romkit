@@ -1,0 +1,8 @@
+/target
+
+# ROM dumps are never committed.
+*.gb
+*.gbc
+*.gba
+*.nds
+*.3ds
