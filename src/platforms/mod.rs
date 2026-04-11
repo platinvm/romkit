@@ -5,6 +5,7 @@
 
 pub mod gb;
 pub mod gba;
+pub mod n3ds;
 pub mod nds;
 
 use std::fmt;
@@ -14,7 +15,7 @@ use serde::{Serialize, Serializer};
 use crate::io::ByteSource;
 use crate::{Error, Result};
 
-/// Every header lies within the first 0x200 bytes.
+/// Every header lies within the first 0x200 bytes (the 3DS one points further in).
 const HEAD_SIZE: u64 = 0x200;
 
 /// What a ROM is, from its header alone.
@@ -48,9 +49,11 @@ pub fn identify<S: ByteSource + ?Sized>(source: &S) -> Result<Identity> {
         gba::identify(&head)
     } else if gb::is_gb(&head) {
         gb::identify(&head)
+    } else if n3ds::is_n3ds(&head) {
+        n3ds::identify(source)
     } else {
         Err(Error::Unsupported(
-            "not a Game Boy, GBA, or DS ROM".into(),
+            "not a Game Boy, GBA, DS, or 3DS ROM".into(),
         ))
     }
 }
@@ -63,6 +66,7 @@ pub enum Platform {
     GameBoyColor,
     GameBoyAdvance,
     NintendoDs,
+    Nintendo3ds,
 }
 
 impl fmt::Display for Platform {
@@ -72,6 +76,7 @@ impl fmt::Display for Platform {
             Self::GameBoyColor => "Game Boy Color",
             Self::GameBoyAdvance => "Game Boy Advance",
             Self::NintendoDs => "Nintendo DS",
+            Self::Nintendo3ds => "Nintendo 3DS",
         })
     }
 }
