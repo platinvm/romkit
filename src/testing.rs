@@ -42,6 +42,30 @@ fn put(bytes: &mut [u8], at: usize, value: &[u8]) {
     bytes[at..at + value.len()].copy_from_slice(value);
 }
 
+/// A NARC holding `members`.
+pub fn narc(members: &[&[u8]]) -> Vec<u8> {
+    let image: Vec<u8> = members.concat();
+    let fat_len = 12 + members.len() * 8;
+    let mut bytes = Vec::new();
+    bytes.extend(b"NARC\xFE\xFF\x00\x01");
+    bytes.extend(((16 + fat_len + 8 + 8 + image.len()) as u32).to_le_bytes());
+    bytes.extend(16u16.to_le_bytes());
+    bytes.extend(3u16.to_le_bytes());
+    bytes.extend(b"BTAF");
+    bytes.extend((fat_len as u32).to_le_bytes());
+    bytes.extend((members.len() as u32).to_le_bytes());
+    let mut end = 0;
+    for member in members {
+        bytes.extend((end as u32).to_le_bytes());
+        end += member.len();
+        bytes.extend((end as u32).to_le_bytes());
+    }
+    bytes.extend(b"BTNF\x08\x00\x00\x00GMIF");
+    bytes.extend(((8 + image.len()) as u32).to_le_bytes());
+    bytes.extend(image);
+    bytes
+}
+
 /// A DS ROM with a valid header and a NitroFS holding `files`, given as `(path, contents)`.
 pub fn nds(code: &[u8; 4], files: &[(&str, &[u8])]) -> Vec<u8> {
     let parent = |path: &str| {
