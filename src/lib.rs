@@ -1,6 +1,7 @@
 //! Identify game ROMs and extract their data and assets as structured files.
 
 mod error;
+pub mod formats;
 pub mod io;
 pub mod platforms;
 #[cfg(test)]

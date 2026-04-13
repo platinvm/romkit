@@ -4,7 +4,10 @@
 
 use std::path::{Path, PathBuf};
 
+use romkit::ByteSource;
+use romkit::formats::{Format, narc::Narc};
 use romkit::io::FileSource;
+use romkit::platforms::nds::NdsRom;
 use romkit::{Platform, identify};
 
 /// Every file in `ROMKIT_ROMS`, sorted by name.
@@ -45,5 +48,37 @@ fn identifies_every_platform() {
         let identity = identify(&open(&path)).unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(identity.platform, expected, "{name}");
         println!("{name}: {identity}");
+    }
+}
+
+#[test]
+fn reads_every_ds_filesystem_banner_and_archive() {
+    for path in dumps()
+        .into_iter()
+        .filter(|path| path.extension() == Some("nds".as_ref()))
+    {
+        let name = name(&path);
+        let rom = NdsRom::open(open(&path)).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let banner = rom.banner().unwrap().expect("retail games have a banner");
+        assert!(
+            banner.english.to_lowercase().starts_with("pokémon"),
+            "{name}: {:?}",
+            banner.english
+        );
+
+        let mut archives = 0;
+        for (file, _) in rom.fs().paths() {
+            let source = rom.file(file).unwrap();
+            if Format::sniff(&source.read_up_to(0, 4).unwrap())
+                .is_some_and(|f| f.extension == "narc")
+            {
+                Narc::parse(&source).unwrap_or_else(|error| panic!("{name}: {file}: {error}"));
+                archives += 1;
+            }
+        }
+        println!(
+            "{name}: {} files, {archives} archives",
+            rom.fs().paths().len()
+        );
     }
 }
