@@ -2,11 +2,13 @@
 
 mod error;
 pub mod formats;
+pub mod games;
 pub mod io;
 pub mod platforms;
 #[cfg(test)]
 mod testing;
 
 pub use error::{Error, Result};
+pub use games::GameId;
 pub use io::ByteSource;
 pub use platforms::{Identity, Platform, identify};
