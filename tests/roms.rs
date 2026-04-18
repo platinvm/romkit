@@ -8,7 +8,7 @@ use romkit::ByteSource;
 use romkit::formats::{Format, narc::Narc};
 use romkit::io::FileSource;
 use romkit::platforms::nds::NdsRom;
-use romkit::{Platform, identify};
+use romkit::{GameId, Platform, identify};
 
 /// Every file in `ROMKIT_ROMS`, sorted by name.
 fn dumps() -> Vec<PathBuf> {
@@ -47,7 +47,8 @@ fn identifies_every_platform() {
         };
         let identity = identify(&open(&path)).unwrap_or_else(|error| panic!("{name}: {error}"));
         assert_eq!(identity.platform, expected, "{name}");
-        println!("{name}: {identity}");
+        let game = GameId::identify(&identity).unwrap_or_else(|| panic!("{name}: unknown game"));
+        println!("{name}: {identity} = {}", game.name());
     }
 }
 
