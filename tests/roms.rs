@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use romkit::ByteSource;
 use romkit::formats::{Format, narc::Narc};
+use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::io::FileSource;
 use romkit::platforms::nds::NdsRom;
 use romkit::{GameId, Platform, identify};
@@ -81,5 +82,32 @@ fn reads_every_ds_filesystem_banner_and_archive() {
             "{name}: {} files, {archives} archives",
             rom.fs().paths().len()
         );
+    }
+}
+
+#[test]
+fn decodes_all_platinum_text() {
+    for path in dumps()
+        .into_iter()
+        .filter(|path| name(path).contains("Platinum"))
+    {
+        let rom = NdsRom::open(open(&path)).unwrap();
+        let archive = rom.file("msgdata/pl_msg.narc").unwrap();
+        let narc = Narc::parse(&archive).unwrap();
+        let text = Text::new(&archive, &narc, "");
+        let mut messages = 0;
+        for bank in 0..text.len() {
+            for message in text.bank(bank).unwrap() {
+                assert!(
+                    !message
+                        .tokens
+                        .iter()
+                        .any(|token| matches!(token, Token::Unknown(_)))
+                );
+                messages += 1;
+            }
+        }
+        assert_eq!(text.strings(412).unwrap()[25], "PIKACHU");
+        println!("{}: {} banks, {messages} messages", name(&path), text.len());
     }
 }
