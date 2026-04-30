@@ -1,5 +1,8 @@
 //! Identify game ROMs and extract their data and assets as structured files.
 
+#[macro_use]
+mod macros;
+
 mod error;
 pub mod formats;
 pub mod games;

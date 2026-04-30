@@ -11,6 +11,10 @@ use crate::Result;
 use crate::formats::narc::Narc;
 use crate::io::ByteSource;
 
+/// Descriptive bank names for Platinum, one per line in bank order, from pret's `pokeplatinum`
+/// decompilation (`unk_*` banks are not identified yet).
+pub(super) const PLATINUM_BANKS: &str = include_str!("platinum_banks.txt");
+
 /// A game's text archive. Banks and messages are decoded when asked for.
 pub struct Text<'a, A> {
     archive: A,
