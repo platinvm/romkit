@@ -61,6 +61,12 @@ impl<S: ByteSource> NdsRom<S> {
         self.file_by_id(id)
     }
 
+    /// A named file's bytes, borrowed when the ROM is in memory.
+    pub fn read(&self, path: &str) -> Result<Cow<'_, [u8]>> {
+        let file = self.file(path)?;
+        self.source.read(file.offset(), file.size())
+    }
+
     /// Any file allocation table entry, named or not (overlays have no name).
     pub fn file_by_id(&self, id: u16) -> Result<Window<&S>> {
         let range = self
