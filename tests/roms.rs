@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use romkit::ByteSource;
 use romkit::formats::{Format, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
+use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
 use romkit::io::FileSource;
 use romkit::platforms::nds::NdsRom;
 use romkit::{GameId, Platform, identify};
@@ -109,5 +110,42 @@ fn decodes_all_platinum_text() {
         }
         assert_eq!(text.strings(412).unwrap()[25], "PIKACHU");
         println!("{}: {} banks, {messages} messages", name(&path), text.len());
+    }
+}
+
+#[test]
+fn extracts_platinum_data() {
+    for path in dumps()
+        .into_iter()
+        .filter(|path| name(path).contains("Platinum"))
+    {
+        let game = Gen4::open(open(&path)).unwrap();
+        let species = game.species().unwrap();
+        let pikachu = &species[24];
+        assert_eq!(pikachu.name.as_deref(), Some("PIKACHU"));
+        assert_eq!(pikachu.types, [Type::Electric, Type::Electric]);
+        assert_eq!((pikachu.base_stats.hp, pikachu.base_stats.speed), (35, 90));
+        assert_eq!(pikachu.evolutions[0].into, SpeciesId(26));
+        assert!(pikachu.machines.contains(&23), "TM24 Thunderbolt");
+
+        let thunderbolt = &game.moves().unwrap()[84];
+        assert_eq!(thunderbolt.name.as_deref(), Some("Thunderbolt"));
+        assert_eq!(
+            (thunderbolt.power, thunderbolt.class),
+            (95, MoveClass::Special)
+        );
+
+        let abilities = game.abilities().unwrap();
+        let static_ = &abilities[8];
+        assert_eq!(static_.name, "Static");
+        assert!(static_.species.contains(&SpeciesId(25)));
+        println!(
+            "{}: {} species, {} moves, {} abilities; {}",
+            name(&path),
+            species.len(),
+            game.moves().unwrap().len(),
+            abilities.len(),
+            serde_json::to_string(&pikachu.evolutions).unwrap()
+        );
     }
 }
