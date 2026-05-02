@@ -46,6 +46,11 @@ impl<'a, A: ByteSource> Text<'a, A> {
         self.names.lines().nth(bank)
     }
 
+    /// The bank with a descriptive name.
+    pub fn find(&self, name: &str) -> Option<usize> {
+        self.names.lines().position(|known| known == name)
+    }
+
     /// Every message in a bank.
     pub fn bank(&self, bank: usize) -> Result<Vec<Message>> {
         decode::bank(&self.narc.member(&self.archive, bank)?)

@@ -12,6 +12,6 @@ pub mod platforms;
 mod testing;
 
 pub use error::{Error, Result};
-pub use games::GameId;
+pub use games::{Game, GameId};
 pub use io::ByteSource;
 pub use platforms::{Identity, Platform, identify};

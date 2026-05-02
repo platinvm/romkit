@@ -14,6 +14,7 @@
 //! # Ok::<(), romkit::Error>(())
 //! ```
 
+mod assets;
 mod moves;
 mod species;
 pub mod text;

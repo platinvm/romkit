@@ -1,6 +1,50 @@
-//! Games: the catalog of recognized titles, and an extractor module per game family.
+//! Games: the catalog of recognized titles, the [`Game`] trait that every extractor implements,
+//! and one module per game family.
+//!
+//! Adding a game to a family that romkit already extracts is usually one entry in that
+//! family's table (see [`Edition`](pokemon::gen4::Edition)). A new family is a module with a
+//! typed handle that implements [`Game`], plus a line in [`open`] and [`GameId::is_supported`].
 
 mod catalog;
 pub mod pokemon;
 
+use serde::Serialize;
+
 pub use catalog::GameId;
+
+use crate::Result;
+use crate::io::ByteSource;
+use pokemon::gen4::{Edition, Gen4};
+
+/// A game romkit can extract, seen as a tree of asset files.
+///
+/// Each extractor also has a typed API for programs that want the data itself, such as
+/// [`Gen4::species`]. This trait is the uniform view that hosts use to browse and export any
+/// supported game the same way: list the asset paths, then extract the ones they need.
+pub trait Game {
+    fn id(&self) -> GameId;
+
+    /// Every asset's path, e.g. `species.json`. Listing extracts nothing.
+    fn assets(&self) -> Result<Vec<String>>;
+
+    /// One asset's contents; the path's extension says what they are.
+    fn extract(&self, path: &str) -> Result<Vec<u8>>;
+}
+
+impl GameId {
+    /// Whether romkit can extract this game.
+    pub fn is_supported(self) -> bool {
+        Edition::of(self).is_some()
+    }
+}
+
+/// The extractor for `game` over `source`, or `None` when the game is not supported.
+pub fn open<'a>(game: GameId, source: impl ByteSource + 'a) -> Option<Result<Box<dyn Game + 'a>>> {
+    let boxed = |game: Result<_>| game.map(|game| Box::new(game) as Box<dyn Game + 'a>);
+    Edition::of(game).map(|_| boxed(Gen4::open(source)))
+}
+
+/// Data assets are pretty-printed JSON, readable as exported files and in a browser alike.
+pub(crate) fn json(value: &(impl Serialize + ?Sized)) -> Result<Vec<u8>> {
+    Ok(serde_json::to_vec_pretty(value)?)
+}
