@@ -10,7 +10,7 @@ use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
 use romkit::io::FileSource;
 use romkit::platforms::nds::NdsRom;
-use romkit::{GameId, Platform, identify};
+use romkit::{GameId, Platform, Rom, identify};
 
 /// Every file in `ROMKIT_ROMS`, sorted by name.
 fn dumps() -> Vec<PathBuf> {
@@ -146,6 +146,34 @@ fn extracts_platinum_data() {
             game.moves().unwrap().len(),
             abilities.len(),
             serde_json::to_string(&pikachu.evolutions).unwrap()
+        );
+    }
+}
+
+#[test]
+fn opens_every_dump_and_exports_supported_games() {
+    for path in dumps() {
+        let name = name(&path);
+        let rom = Rom::open(open(&path)).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let overview = rom.overview().unwrap();
+        let files = rom.files().unwrap();
+        if !overview.supported {
+            println!("{name}: {} files, not supported", files.len());
+            continue;
+        }
+        let mut written = std::collections::BTreeMap::new();
+        let manifest = rom
+            .export(|path, contents| {
+                written.insert(path.to_owned(), contents.len());
+                Ok(())
+            })
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert_eq!(written.len(), manifest.assets.len() + 1, "{name}");
+        let bytes: usize = written.values().sum();
+        println!(
+            "{name}: {} assets, {bytes} bytes, crc32 {}",
+            manifest.assets.len(),
+            manifest.crc32
         );
     }
 }
