@@ -53,10 +53,29 @@ pub struct Edition {
     bank_names: &'static str,
 }
 
-const PLATINUM: Edition = Edition {
-    personal: "poketool/personal/pl_personal.narc",
+const DIAMOND: Edition = Edition {
+    personal: "poketool/personal/personal.narc",
     evolutions: "poketool/personal/evo.narc",
     learnsets: "poketool/personal/wotbl.narc",
+    moves: "poketool/waza/waza_tbl.narc",
+    text: "msgdata/msg.narc",
+    species_names: 362,
+    move_names: 588,
+    move_descriptions: 587,
+    ability_names: 552,
+    ability_descriptions: 554,
+    bank_names: "",
+};
+
+/// Pearl's species differ from Diamond's only in their version-exclusive data.
+const PEARL: Edition = Edition {
+    personal: "poketool/personal_pearl/personal.narc",
+    ..DIAMOND
+};
+
+/// Platinum keeps a `pl_` copy of the tables it changed beside the Diamond and Pearl ones.
+const PLATINUM: Edition = Edition {
+    personal: "poketool/personal/pl_personal.narc",
     moves: "poketool/waza/pl_waza_tbl.narc",
     text: "msgdata/pl_msg.narc",
     species_names: 412,
@@ -65,12 +84,31 @@ const PLATINUM: Edition = Edition {
     ability_names: 610,
     ability_descriptions: 612,
     bank_names: text::PLATINUM_BANKS,
+    ..DIAMOND
+};
+
+/// HeartGold and SoulSilver number their files instead of naming them.
+const HEARTGOLD_SOULSILVER: Edition = Edition {
+    personal: "a/0/0/2",
+    evolutions: "a/0/3/4",
+    learnsets: "a/0/3/3",
+    moves: "a/0/1/1",
+    text: "a/0/2/7",
+    species_names: 237,
+    move_names: 750,
+    move_descriptions: 749,
+    ability_names: 720,
+    ability_descriptions: 722,
+    bank_names: "",
 };
 
 impl Edition {
     pub fn of(game: GameId) -> Option<&'static Self> {
         match game {
+            GameId::PokemonDiamond => Some(&DIAMOND),
+            GameId::PokemonPearl => Some(&PEARL),
             GameId::PokemonPlatinum => Some(&PLATINUM),
+            GameId::PokemonHeartGold | GameId::PokemonSoulSilver => Some(&HEARTGOLD_SOULSILVER),
             _ => None,
         }
     }

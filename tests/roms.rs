@@ -114,10 +114,11 @@ fn decodes_all_platinum_text() {
 }
 
 #[test]
-fn extracts_platinum_data() {
+fn extracts_gen4_data() {
+    let gen4 = ["Diamond", "Pearl", "Platinum", "HeartGold", "SoulSilver"];
     for path in dumps()
         .into_iter()
-        .filter(|path| name(path).contains("Platinum"))
+        .filter(|path| gen4.iter().any(|game| name(path).contains(game)))
     {
         let game = Gen4::open(open(&path)).unwrap();
         let species = game.species().unwrap();
