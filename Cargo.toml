@@ -6,6 +6,9 @@ rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 description = "Identify game ROMs and extract their data and assets as structured files."
 
+[workspace]
+members = ["cli"]
+
 [dependencies]
 crc32fast = "1.5.2"
 serde = { version = "1.0.229", features = ["derive"] }
