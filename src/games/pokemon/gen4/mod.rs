@@ -87,12 +87,28 @@ const PLATINUM: Edition = Edition {
     ..DIAMOND
 };
 
+/// HeartGold and SoulSilver number their files instead of naming them.
+const HEARTGOLD_SOULSILVER: Edition = Edition {
+    personal: "a/0/0/2",
+    evolutions: "a/0/3/4",
+    learnsets: "a/0/3/3",
+    moves: "a/0/1/1",
+    text: "a/0/2/7",
+    species_names: 237,
+    move_names: 750,
+    move_descriptions: 749,
+    ability_names: 720,
+    ability_descriptions: 722,
+    bank_names: "",
+};
+
 impl Edition {
     pub fn of(game: GameId) -> Option<&'static Self> {
         match game {
             GameId::PokemonDiamond => Some(&DIAMOND),
             GameId::PokemonPearl => Some(&PEARL),
             GameId::PokemonPlatinum => Some(&PLATINUM),
+            GameId::PokemonHeartGold | GameId::PokemonSoulSilver => Some(&HEARTGOLD_SOULSILVER),
             _ => None,
         }
     }
