@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 description = "Identify game ROMs and extract their data and assets as structured files."
 
 [workspace]
-members = ["cli"]
+members = ["cli", "wasm"]
 
 [dependencies]
 crc32fast = "1.5.2"
