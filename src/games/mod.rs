@@ -2,7 +2,7 @@
 //! and one module per game family.
 //!
 //! Adding a game to a family that romkit already extracts is usually one entry in that
-//! family's table (see [`Edition`](pokemon::gen4::Edition)). A new family is a module with a
+//! family's table (see [`pokemon::gen4::Edition`]). A new family is a module with a
 //! typed handle that implements [`Game`], plus a line in [`open`] and [`GameId::is_supported`].
 
 mod catalog;
