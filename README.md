@@ -23,19 +23,24 @@ The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 
 ## Layout
 
 ```text
-src/
-  io/              ByteSource, Window, FileSource; Reader, the bounds-checked cursor
-  platforms/       identify() and one module per handheld; nds/ has NitroFS and the banner
-  formats/         file formats inside ROMs: signature sniffing, NARC archives
-  games/
-    catalog.rs     GameId: every recognized game and its header signature
-    mod.rs         the Game trait, and open() to get a game's extractor
-    pokemon/gen4/  the Gen4 handle, the Edition table, species, moves, text, assets
-  rom.rs           Rom: any ROM, for hosts that take whatever they are given
-cli/               the romkit command-line tool
-wasm/              romkit-wasm for the website, and romkit.mjs, a minimal JS host
-tests/roms.rs      checks against real dumps
+crates/
+  romkit/                the library
+    src/
+      io/                ByteSource, Window, FileSource; Reader, the bounds-checked cursor
+      platforms/         identify() and one module per handheld; nds/ has NitroFS and the banner
+      formats/           file formats inside ROMs: signature sniffing, NARC archives
+      games/
+        catalog.rs       GameId: every recognized game and its header signature
+        mod.rs           the Game trait, and open() to get a game's extractor
+        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, assets
+      rom.rs             Rom: any ROM, for hosts that take whatever they are given
+    tests/roms.rs        checks against real dumps
+  romkit-cli/            the romkit command-line tool
+  romkit-wasm/           the wasm build for the website, and romkit.mjs, a minimal JS host
 ```
+
+The root `Cargo.toml` holds what the crates share: versions, dependency versions, and the build
+profiles.
 
 Each layer knows nothing of the ones above it: platforms do not know games, formats do not know
 platforms.
@@ -88,7 +93,8 @@ cargo run --release -p romkit-cli -- game.nds extract species.json
 cargo run --release -p romkit-cli -- game.nds export out/
 ```
 
-In a browser, build the wasm module and load it with `wasm/romkit.mjs` in a Web Worker:
+In a browser, build the wasm module and load it in a Web Worker with
+`crates/romkit-wasm/romkit.mjs`:
 
 ```sh
 cargo build --release -p romkit-wasm --target wasm32-unknown-unknown
@@ -105,19 +111,20 @@ const species = JSON.parse(new TextDecoder().decode(romkit.extract("species.json
 
 ## Adding a game
 
-1. **Recognize it**: add a row to the catalog in `src/games/catalog.rs`.
+1. **Recognize it**: add a row to the catalog in `crates/romkit/src/games/catalog.rs`.
 2. **Same engine as a supported game**: add its `Edition` (file paths and text banks) in that
-   family's module, e.g. `src/games/pokemon/gen4/mod.rs`. Locate text banks by their content in a
-   real dump.
-3. **New engine**: add a module under `src/games/` with a typed handle that parses tables on
-   first use and implements `Game`, then add a line to `games::open` and `GameId::is_supported`.
-4. **Check it against a real dump** in `tests/roms.rs` with facts you know to be true.
+   family's module, e.g. `crates/romkit/src/games/pokemon/gen4/mod.rs`. Locate text banks by their
+   content in a real dump.
+3. **New engine**: add a module under `crates/romkit/src/games/` with a typed handle that parses
+   tables on first use and implements `Game`, then add a line to `games::open` and
+   `GameId::is_supported`.
+4. **Check it against a real dump** in `crates/romkit/tests/roms.rs` with facts you know to be true.
 
 ## Test
 
 ```sh
-cargo test --workspace                                    # unit tests, synthetic data
-ROMKIT_ROMS=~/roms cargo test --test roms -- --nocapture  # every dump in ~/roms
+cargo test --workspace                                              # unit tests, synthetic data
+ROMKIT_ROMS=~/roms cargo test -p romkit --test roms -- --nocapture  # every dump in ~/roms
 ```
 
 ROM dumps are never committed; without `ROMKIT_ROMS` the real-dump tests pass vacuously.
