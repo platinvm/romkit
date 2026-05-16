@@ -1,15 +1,16 @@
 [package]
 name = "romkit-wasm"
-version = "0.1.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
 description = "romkit for browsers: wasm32 entry points over Rom, with JSON results."
 publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-romkit = { path = "../romkit" }
-serde = "1.0.229"
-serde_json = "1.0.151"
+romkit.workspace = true
+serde.workspace = true
+serde_json.workspace = true

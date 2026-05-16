@@ -1,15 +1,16 @@
 [package]
 name = "romkit-cli"
-version = "0.1.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
 description = "Inspect ROMs and export their assets from the command line."
 publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "romkit"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.6.6", features = ["derive"] }
-romkit = { path = "../romkit" }
+clap.workspace = true
+romkit.workspace = true
