@@ -1,6 +1,6 @@
 //! Checks against real ROM dumps, which are never committed. Point `ROMKIT_ROMS` at a folder of
-//! dumps to run them (`ROMKIT_ROMS=~/roms cargo test --test roms -- --nocapture`); without it
-//! they pass vacuously.
+//! dumps to run them (`ROMKIT_ROMS=~/roms cargo test -p romkit --test roms -- --nocapture`);
+//! without it they pass vacuously.
 
 use std::path::{Path, PathBuf};
 
