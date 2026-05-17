@@ -6,6 +6,7 @@
 //!   behind a browser `Blob`. Only the bytes a parser needs are ever read.
 //! - [`platforms`]: what a ROM is, from its header, and the DS filesystem.
 //! - [`formats`]: file formats found inside ROMs, such as NARC archives.
+//! - [`media`]: what romkit produces besides data: images (PNG) and audio (WAV).
 //! - [`games`]: the catalog of recognized games and their extractors, each with a typed API
 //!   and the uniform [`Game`] asset view.
 //!
@@ -36,6 +37,7 @@ mod error;
 pub mod formats;
 pub mod games;
 pub mod io;
+pub mod media;
 pub mod platforms;
 mod rom;
 #[cfg(test)]
