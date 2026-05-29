@@ -64,7 +64,7 @@ pub struct Texture {
     pub wrap: [Wrap; 2],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Wrap {
     Clamp,
     Repeat,

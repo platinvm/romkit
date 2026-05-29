@@ -7,8 +7,11 @@
 //! dictionaries: a count, a search tree the DS uses to look names up (ignored here), the
 //! fixed-size entries, then a 16-byte name per entry.
 
+mod model;
+mod render;
 mod texture;
 
+pub use model::{Material, Model, Node, Nsbmd};
 pub use texture::{Palette, Texture, TextureFormat, Textures};
 
 use crate::Result;
@@ -48,6 +51,16 @@ fn dictionary<'a>(data: &Reader<'a>, at: usize) -> Result<Vec<(String, &'a [u8])
             ))
         })
         .collect()
+}
+
+/// A 20.12 fixed-point number.
+fn fx32(raw: u32) -> f32 {
+    raw as i32 as f32 / 4096.0
+}
+
+/// A 4.12 fixed-point number.
+fn fx16(raw: u16) -> f32 {
+    raw as i16 as f32 / 4096.0
 }
 
 #[cfg(test)]
