@@ -120,6 +120,14 @@ pub struct Material {
     pub texture_translation: [f32; 2],
 }
 
+impl Material {
+    /// The texture to draw with: the bound one, else one named like the material. Games bind
+    /// some textures only while running, as animated water, and name the material after it.
+    pub fn texture_name(&self) -> &str {
+        self.texture.as_deref().unwrap_or(&self.name)
+    }
+}
+
 /// A GPU display list: commands that draw polygons.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shape {

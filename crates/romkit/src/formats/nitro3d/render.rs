@@ -22,8 +22,9 @@ const WHITE: [u8; 4] = [255; 4];
 
 impl Model {
     /// The model's polygons, with its materials and their textures. Textures are looked up
-    /// by name in `textures`, in order: usually the model file's own, then any the game
-    /// keeps apart. Materials whose texture is not found are drawn untextured.
+    /// by [name](super::Material::texture_name) in `textures`, in order: usually the model
+    /// file's own, then any the game keeps apart. Materials whose texture is not found are
+    /// drawn untextured.
     pub fn mesh(&self, textures: &[&Textures]) -> Result<Mesh> {
         let mut mesh = Mesh {
             name: self.name.clone(),
@@ -339,11 +340,10 @@ fn convert_material(
         (true, false) => Wrap::Repeat,
         (true, true) => Wrap::Mirror,
     });
-    let found = material.texture.as_deref().and_then(|name| {
-        textures
-            .iter()
-            .find_map(|source| Some((*source, source.texture(name)?)))
-    });
+    let name = material.texture_name();
+    let found = textures
+        .iter()
+        .find_map(|source| Some((*source, source.texture(name)?)));
     let texture = match found {
         Some((source, texture)) => {
             let key = (texture.name.clone(), material.palette.clone(), wrap);
