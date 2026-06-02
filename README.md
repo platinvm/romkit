@@ -20,6 +20,12 @@ The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 
 `species.json` (stats, types, abilities, evolutions, level-up moves, TM/HM compatibility),
 `moves.json`, `abilities.json`, and every text bank as `text/<bank>.json`.
 
+Gen 4 games also extract the overworld in 3D as glTF with embedded textures: map terrain
+(`models/maps/<n>.glb`), buildings (`models/buildings/<n>.glb`), and in HeartGold and
+SoulSilver indoor furniture (`models/furniture/<n>.glb`); and as PNG the texture sets of maps and
+buildings and the overworld character sprites (`textures/{maps,buildings,overworld}/<n>/<name>.png`).
+Any DS game's 3D models (NSBMD) and textures (NSBTX) convert through `formats::nitro3d`.
+
 ## Layout
 
 ```text
@@ -28,11 +34,11 @@ crates/
     src/
       io/                ByteSource, Window, FileSource; Reader, the bounds-checked cursor
       platforms/         identify() and one module per handheld; nds/ has NitroFS and the banner
-      formats/           file formats inside ROMs: signature sniffing, NARC archives
+      formats/           file formats inside ROMs: signature sniffing, NARC archives, Nitro 3D
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
-        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, assets
+        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, 3D field, assets
       rom.rs             Rom: any ROM, for hosts that take whatever they are given
     tests/roms.rs        checks against real dumps
   romkit-cli/            the romkit command-line tool
