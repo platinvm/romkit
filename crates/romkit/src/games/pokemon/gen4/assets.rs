@@ -5,6 +5,7 @@
 //! moves.json
 //! abilities.json
 //! text/<bank>.json  one file per text bank, its messages in markup form
+//! models/…, textures/…  the overworld in 3D, see [`field`](super::field)
 //! ```
 
 use serde::Serialize;
@@ -38,10 +39,14 @@ impl<S: ByteSource> Game for Gen4<S> {
         let text = self.text()?;
         let banks =
             (0..text.len()).map(|bank| format!("text/{}.json", bank_stem(bank, text.name(bank))));
-        Ok(TABLES.into_iter().map(str::to_owned).chain(banks).collect())
+        let tables = TABLES.into_iter().map(str::to_owned);
+        Ok(tables.chain(banks).chain(self.field_assets()?).collect())
     }
 
     fn extract(&self, path: &str) -> Result<Vec<u8>> {
+        if let Some(asset) = self.extract_field(path) {
+            return asset;
+        }
         match path {
             "species.json" => json(self.species()?),
             "moves.json" => json(self.moves()?),
