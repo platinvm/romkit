@@ -5,7 +5,8 @@
 use std::path::{Path, PathBuf};
 
 use romkit::ByteSource;
-use romkit::formats::{Format, narc::Narc};
+use romkit::formats::g2d::{Cells, Palette, Screen, Tiles};
+use romkit::formats::{Format, lz, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
 use romkit::io::FileSource;
@@ -83,6 +84,46 @@ fn reads_every_ds_filesystem_banner_and_archive() {
             "{name}: {} files, {archives} archives",
             rom.fs().paths().len()
         );
+    }
+}
+
+/// Every NCLR, NCGR, NCER, and NSCR in every DS dump parses, whether stored as a file or an
+/// archive member, compressed or not.
+#[test]
+fn parses_every_ds_2d_graphic() {
+    for path in dumps()
+        .into_iter()
+        .filter(|path| path.extension() == Some("nds".as_ref()))
+    {
+        let name = name(&path);
+        let rom = NdsRom::open(open(&path)).unwrap();
+        let (mut parsed, mut compressed) = (std::collections::BTreeMap::new(), 0);
+        for (file, _) in rom.fs().paths() {
+            let bytes = rom.read(file).unwrap();
+            let members = match Narc::parse(bytes.as_ref()) {
+                Ok(narc) => (0..narc.len())
+                    .map(|index| narc.member(bytes.as_ref(), index).unwrap().into_owned())
+                    .collect(),
+                Err(_) => vec![bytes.into_owned()],
+            };
+            for (index, member) in members.iter().enumerate() {
+                let member = lz::decompress_if_compressed(member);
+                compressed += matches!(member, std::borrow::Cow::Owned(_)) as usize;
+                let Some(format) = Format::sniff(&member) else {
+                    continue;
+                };
+                let result = match format.extension {
+                    "nclr" => Palette::parse(&member).map(drop),
+                    "ncgr" => Tiles::parse(&member).map(drop),
+                    "ncer" => Cells::parse(&member).map(drop),
+                    "nscr" => Screen::parse(&member).map(drop),
+                    _ => continue,
+                };
+                result.unwrap_or_else(|error| panic!("{name}: {file} #{index}: {error}"));
+                *parsed.entry(format.extension).or_insert(0) += 1;
+            }
+        }
+        println!("{name}: {parsed:?}, {compressed} compressed members");
     }
 }
 
