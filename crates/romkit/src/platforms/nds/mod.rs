@@ -1,6 +1,7 @@
 //! Nintendo DS cartridges: the header, the NitroFS filesystem, and the banner.
 
 mod banner;
+mod code;
 mod fs;
 
 use std::borrow::Cow;
@@ -76,6 +77,14 @@ impl<S: ByteSource> NdsRom<S> {
         Window::new(&self.source, range.start, range.end - range.start)
     }
 
+    /// The ARM9 binary, the game's main code, decompressed. Games keep some tables in it.
+    pub fn arm9(&self) -> Result<Vec<u8>> {
+        let range = &self.header.arm9;
+        let binary = read_table(&self.source, range, "DS ARM9")?.into_owned();
+        let footer = self.source.read_up_to(range.end, 12)?;
+        code::arm9(binary, self.header.arm9_address, &footer)
+    }
+
     pub fn banner(&self) -> Result<Option<Banner>> {
         match self.header.banner_offset {
             0 => Ok(None),
@@ -100,6 +109,9 @@ pub struct Header {
     pub title: String,
     pub code: GameCode,
     pub revision: u8,
+    /// Where the ARM9 binary lies in the ROM, and where it is loaded in memory.
+    pub arm9: Range<u64>,
+    pub arm9_address: u32,
     /// Where the file name table lies in the ROM.
     pub fnt: Range<u64>,
     /// Where the file allocation table lies in the ROM.
@@ -122,6 +134,11 @@ impl Header {
             title: ascii(header.slice_at(0, 12)?),
             code: GameCode(header.array_at(0x0C)?),
             revision: header.u8_at(0x1E)?,
+            arm9: {
+                let start = header.u32_at(0x20)? as u64;
+                start..start + header.u32_at(0x2C)? as u64
+            },
+            arm9_address: header.u32_at(0x28)?,
             fnt: table(0x40)?,
             fat: table(0x48)?,
             banner_offset: header.u32_at(0x68)?.into(),
