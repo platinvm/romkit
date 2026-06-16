@@ -8,10 +8,11 @@ use romkit::ByteSource;
 use romkit::formats::g2d::{Cells, Palette, Screen, Tiles};
 use romkit::formats::{Format, lz, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
-use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
+use romkit::games::pokemon::gen4::{Gen4, ItemId, MoveClass, SpeciesId, Type, Variant};
 use romkit::io::FileSource;
+use romkit::media::Image;
 use romkit::platforms::nds::NdsRom;
-use romkit::{GameId, Platform, Rom, identify};
+use romkit::{Game, GameId, Platform, Rom, identify};
 
 /// Every file in `ROMKIT_ROMS`, sorted by name.
 fn dumps() -> Vec<PathBuf> {
@@ -188,6 +189,80 @@ fn extracts_gen4_data() {
             game.moves().unwrap().len(),
             abilities.len(),
             serde_json::to_string(&pikachu.evolutions).unwrap()
+        );
+    }
+}
+
+/// The share of an image's opaque pixels that are yellow.
+fn yellow_share(image: &Image) -> f64 {
+    let opaque = image.pixels.iter().filter(|pixel| pixel[3] != 0);
+    let yellow = opaque
+        .clone()
+        .filter(|[r, g, b, _]| *r > 180 && *g > 150 && *b < 120)
+        .count();
+    yellow as f64 / opaque.count().max(1) as f64
+}
+
+#[test]
+fn extracts_gen4_sprites() {
+    let gen4 = ["Diamond", "Pearl", "Platinum", "HeartGold", "SoulSilver"];
+    for path in dumps()
+        .into_iter()
+        .filter(|path| gen4.iter().any(|game| name(path).contains(game)))
+    {
+        let name = name(&path);
+        let game = Gen4::open(open(&path)).unwrap();
+        let pikachu = SpeciesId(25);
+        for variant in Variant::ALL {
+            let sprite = game.pokemon_sprite(pikachu, variant).unwrap();
+            assert_eq!((sprite.width, sprite.height), (80, 80), "{name}");
+            for (x, y) in [(0, 0), (79, 0), (0, 79), (79, 79)] {
+                assert_eq!(sprite.get(x, y).unwrap()[3], 0, "{name} {variant:?}");
+            }
+            assert!(yellow_share(&sprite) > 0.3, "{name} {variant:?}");
+        }
+        let icon = game.pokemon_icon(pikachu).unwrap();
+        assert_eq!((icon.width, icon.height), (32, 32));
+        assert!(yellow_share(&icon) > 0.3, "{name}");
+        // Single-gender species have one sprite, whichever is asked for.
+        let nidoran = SpeciesId(29);
+        let female = Variant::ALL[2];
+        assert_eq!(
+            game.pokemon_sprite(nidoran, female).unwrap(),
+            game.pokemon_sprite(nidoran, Variant::ALL[0]).unwrap()
+        );
+        // The Master Ball's icon is mostly purple.
+        let ball = game.item_icon(ItemId(1)).unwrap();
+        let purple = ball
+            .pixels
+            .iter()
+            .filter(|[r, g, b, a]| *a != 0 && r > g && b > g)
+            .count();
+        assert!(purple > 100, "{name}: {purple} purple pixels");
+
+        let assets = game.assets().unwrap();
+        let count = |prefix: &str| {
+            assets
+                .iter()
+                .filter(|path| path.starts_with(prefix))
+                .count()
+        };
+        assert_eq!(count("sprites/pokemon/front/"), 493);
+        assert_eq!(count("sprites/pokemon/back-shiny/"), 493);
+        assert_eq!(count("sprites/icons/"), 493);
+        assert!(assets.contains(&"sprites/pokemon/front-female/0025.png".to_owned()));
+        assert!(!assets.contains(&"sprites/pokemon/front-female/0029.png".to_owned()));
+        let (trainers, items) = match () {
+            _ if name.contains("Platinum") => (105, 467),
+            _ if name.contains("Gold") || name.contains("Silver") => (129, 536),
+            _ => (98, 464),
+        };
+        assert_eq!(count("sprites/trainers/"), trainers, "{name}");
+        assert_eq!(count("sprites/items/"), items, "{name}");
+        println!(
+            "{name}: {} sprites, {} female",
+            count("sprites/"),
+            count("sprites/pokemon/front-female/") + count("sprites/pokemon/back-female/")
         );
     }
 }
