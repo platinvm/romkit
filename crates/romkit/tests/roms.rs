@@ -2,6 +2,7 @@
 //! dumps to run them (`ROMKIT_ROMS=~/roms cargo test -p romkit --test roms -- --nocapture`);
 //! without it they pass vacuously.
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use romkit::ByteSource;
@@ -9,6 +10,7 @@ use romkit::formats::{Format, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
 use romkit::io::FileSource;
+use romkit::platforms::n3ds::N3dsRom;
 use romkit::platforms::nds::NdsRom;
 use romkit::{GameId, Platform, Rom, identify};
 
@@ -82,6 +84,71 @@ fn reads_every_ds_filesystem_banner_and_archive() {
         println!(
             "{name}: {} files, {archives} archives",
             rom.fs().paths().len()
+        );
+    }
+}
+
+/// A dump that counts the bytes read through it.
+struct Counting {
+    file: FileSource,
+    bytes_read: Cell<u64>,
+}
+
+impl Counting {
+    fn open(path: &Path) -> Self {
+        Self {
+            file: open(path),
+            bytes_read: Cell::new(0),
+        }
+    }
+}
+
+impl ByteSource for Counting {
+    fn size(&self) -> u64 {
+        self.file.size()
+    }
+
+    fn read_exact_at(&self, offset: u64, buf: &mut [u8]) -> romkit::Result<()> {
+        self.bytes_read
+            .set(self.bytes_read.get() + buf.len() as u64);
+        self.file.read_exact_at(offset, buf)
+    }
+}
+
+fn dumps_3ds() -> impl Iterator<Item = PathBuf> {
+    dumps()
+        .into_iter()
+        .filter(|path| path.extension() == Some("3ds".as_ref()))
+}
+
+#[test]
+fn reads_every_3ds_filesystem_lazily() {
+    for path in dumps_3ds() {
+        let name = name(&path);
+        let source = Counting::open(&path);
+        let rom = N3dsRom::open(&source).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let opened = source.bytes_read.get();
+        // Headers and RomFS metadata only, out of 2 to 4 GB.
+        assert!(opened < 64 << 10, "{name}: opening read {opened} bytes");
+        assert!(rom.fs().paths().len() > 600, "{name}");
+        assert_eq!(
+            &*rom.file("exefs/icon").unwrap().read(0, 4).unwrap(),
+            b"SMDH"
+        );
+        // Game Freak keeps its data in numbered archives; some numbers are left empty.
+        let archives: Vec<_> = rom
+            .fs()
+            .paths()
+            .filter(|(path, range)| path.starts_with("a/") && !range.is_empty())
+            .collect();
+        for (path, _) in &archives {
+            let head = rom.file(path).unwrap().read(0, 4).unwrap().into_owned();
+            assert_eq!(head, b"CRAG", "{name}: {path}");
+        }
+        println!(
+            "{name}: {} files, {} archives, opening read {opened} bytes",
+            rom.fs().paths().len(),
+            archives.len()
         );
     }
 }

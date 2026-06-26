@@ -8,7 +8,8 @@ use serde::Serialize;
 use crate::formats::Format;
 use crate::formats::narc::Narc;
 use crate::games::{self, Game, GameId};
-use crate::io::ByteSource;
+use crate::io::{ByteSource, Window};
+use crate::platforms::n3ds::N3dsRom;
 use crate::platforms::nds::{Banner, NdsRom};
 use crate::platforms::{Identity, Platform, identify};
 use crate::{Error, Result};
@@ -23,7 +24,29 @@ pub struct Rom<'a> {
     identity: Identity,
     game_id: Option<GameId>,
     game: Option<Box<dyn Game + 'a>>,
-    nds: Option<NdsRom<Shared<'a>>>,
+    container: Option<Container<'a>>,
+}
+
+/// The platforms whose ROMs hold a filesystem.
+enum Container<'a> {
+    Nds(NdsRom<Shared<'a>>),
+    N3ds(N3dsRom<Shared<'a>>),
+}
+
+impl<'a> Container<'a> {
+    fn paths(&self) -> Vec<&str> {
+        match self {
+            Self::Nds(nds) => nds.fs().paths().map(|(path, _)| path).collect(),
+            Self::N3ds(n3ds) => n3ds.fs().paths().map(|(path, _)| path).collect(),
+        }
+    }
+
+    fn file(&self, path: &str) -> Result<Window<&Shared<'a>>> {
+        match self {
+            Self::Nds(nds) => nds.file(path),
+            Self::N3ds(n3ds) => n3ds.file(path),
+        }
+    }
 }
 
 /// What a host shows first.
@@ -65,8 +88,9 @@ impl<'a> Rom<'a> {
         let game = game_id
             .and_then(|id| games::open(id, Rc::clone(&source)))
             .transpose()?;
-        let nds = match identity.platform {
-            Platform::NintendoDs => Some(NdsRom::open(Rc::clone(&source))?),
+        let container = match identity.platform {
+            Platform::NintendoDs => Some(Container::Nds(NdsRom::open(Rc::clone(&source))?)),
+            Platform::Nintendo3ds => Some(Container::N3ds(N3dsRom::open(Rc::clone(&source))?)),
             _ => None,
         };
         Ok(Self {
@@ -74,7 +98,7 @@ impl<'a> Rom<'a> {
             identity,
             game_id,
             game,
-            nds,
+            container,
         })
     }
 
@@ -98,29 +122,33 @@ impl<'a> Rom<'a> {
             game: self.game_id,
             game_name: self.game_id.map(GameId::name),
             supported: self.game.is_some(),
-            banner: self.nds.as_ref().map(NdsRom::banner).transpose()?.flatten(),
+            banner: match &self.container {
+                Some(Container::Nds(nds)) => nds.banner()?,
+                _ => None,
+            },
         })
     }
 
-    /// Every named file, with its size and format. Only DS ROMs have a filesystem; other ROMs
-    /// list nothing.
+    /// Every named file, with its size and format. Only DS and 3DS ROMs have a filesystem;
+    /// other ROMs list nothing.
     pub fn files(&self) -> Result<Vec<FileInfo>> {
-        let Some(nds) = &self.nds else {
+        let Some(container) = &self.container else {
             return Ok(Vec::new());
         };
-        nds.fs()
+        container
             .paths()
-            .map(|(path, _)| describe(path.to_owned(), &nds.file(path)?))
+            .into_iter()
+            .map(|path| describe(path.to_owned(), &container.file(path)?))
             .collect()
     }
 
     pub fn read_file(&self, path: &str) -> Result<Vec<u8>> {
-        Ok(self.nds()?.read(path)?.into_owned())
+        Ok(self.container()?.file(path)?.read_all()?.into_owned())
     }
 
     /// The members of the archive at `path`.
     pub fn archive(&self, path: &str) -> Result<Vec<FileInfo>> {
-        let file = self.nds()?.file(path)?;
+        let file = self.container()?.file(path)?;
         let narc = Narc::parse(&file)?;
         (0..narc.len())
             .map(|index| describe(index.to_string(), &narc.member_source(&file, index)?))
@@ -128,7 +156,7 @@ impl<'a> Rom<'a> {
     }
 
     pub fn read_member(&self, path: &str, index: usize) -> Result<Vec<u8>> {
-        let file = self.nds()?.file(path)?;
+        let file = self.container()?.file(path)?;
         Ok(Narc::parse(&file)?.member(&file, index)?.into_owned())
     }
 
@@ -165,8 +193,8 @@ impl<'a> Rom<'a> {
         Ok(manifest)
     }
 
-    fn nds(&self) -> Result<&NdsRom<Shared<'a>>> {
-        self.nds.as_ref().ok_or_else(|| {
+    fn container(&self) -> Result<&Container<'a>> {
+        self.container.as_ref().ok_or_else(|| {
             Error::Unsupported(format!("{} has no filesystem", self.identity.platform))
         })
     }
@@ -183,7 +211,7 @@ fn describe(path: String, file: &impl ByteSource) -> Result<FileInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{narc, nds};
+    use crate::testing::{n3ds, narc, nds};
 
     #[test]
     fn browses_files_and_archive_members() {
@@ -207,5 +235,19 @@ mod tests {
         assert_eq!(members[0].format.unwrap().extension, "narc");
         assert_eq!(rom.read_member("data/a.narc", 1).unwrap(), b"two");
         assert!(rom.archive("readme.txt").is_err());
+    }
+
+    #[test]
+    fn browses_3ds_files() {
+        let rom = Rom::open(n3ds(
+            "CTR-P-ABCE",
+            &[("icon", b"SMDH")],
+            &[("a/0/0/1", b"one")],
+        ))
+        .unwrap();
+        assert_eq!(rom.identity().platform, Platform::Nintendo3ds);
+        let paths: Vec<_> = rom.files().unwrap().into_iter().map(|f| f.path).collect();
+        assert_eq!(paths, ["a/0/0/1", "exefs/icon"]);
+        assert_eq!(rom.read_file("a/0/0/1").unwrap(), b"one");
     }
 }
