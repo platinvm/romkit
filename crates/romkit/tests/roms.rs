@@ -6,6 +6,7 @@ use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use romkit::ByteSource;
+use romkit::formats::garc::{self, Garc};
 use romkit::formats::{Format, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
@@ -141,12 +142,35 @@ fn reads_every_3ds_filesystem_lazily() {
             .paths()
             .filter(|(path, range)| path.starts_with("a/") && !range.is_empty())
             .collect();
-        for (path, _) in &archives {
-            let head = rom.file(path).unwrap().read(0, 4).unwrap().into_owned();
-            assert_eq!(head, b"CRAG", "{name}: {path}");
+        let (mut files, mut compressed) = (0, 0);
+        for (path, range) in &archives {
+            let archive = rom.file(path).unwrap();
+            let garc =
+                Garc::parse(&archive).unwrap_or_else(|error| panic!("{name}: {path}: {error}"));
+            files += garc.files().len();
+            // Unpack the files of the smaller archives, and check that listing them, from
+            // their first bytes alone, agrees.
+            if range.end - range.start > 4 << 20 {
+                continue;
+            }
+            for index in 0..garc.files().len() {
+                let source = garc.file_source(&archive, index).unwrap();
+                let stored = source.read_all().unwrap();
+                // As `Rom::archive` lists them: small files whole, others by their head.
+                let head = if stored.len() > 0x10000 {
+                    &stored[..64]
+                } else {
+                    &stored[..]
+                };
+                let (size, _) = garc::peek(stored.len(), head);
+                let contents = garc::unpack(stored.clone());
+                assert_eq!(size, contents.len(), "{name}: {path} file {index}");
+                compressed += usize::from(contents.len() != stored.len() || *contents != *stored);
+            }
         }
         println!(
-            "{name}: {} files, {} archives, opening read {opened} bytes",
+            "{name}: {} files, {} archives holding {files} files ({compressed} compressed among \
+             the smaller ones), opening read {opened} bytes",
             rom.fs().paths().len(),
             archives.len()
         );

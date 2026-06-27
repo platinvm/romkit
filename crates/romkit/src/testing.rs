@@ -288,3 +288,44 @@ pub fn n3ds(product: &str, exefs: &[(&str, &[u8])], files: &[(&str, &[u8])]) -> 
     image.extend(romfs_image);
     image
 }
+
+/// A version 4 GARC holding `entries`, each a list of files.
+pub fn garc(entries: &[&[&[u8]]]) -> Vec<u8> {
+    let mut offsets = Vec::new();
+    let mut table = Vec::new();
+    let mut data = Vec::new();
+    for files in entries {
+        offsets.extend((table.len() as u32).to_le_bytes());
+        table.extend(((1u64 << files.len()) - 1).to_le_bytes()[..4].to_vec());
+        for file in files.iter() {
+            let start = data.len() as u32;
+            data.extend(*file);
+            data.resize(data.len().next_multiple_of(4), 0);
+            for value in [start, data.len() as u32, file.len() as u32] {
+                table.extend(value.to_le_bytes());
+            }
+        }
+    }
+    let count = entries.iter().map(|files| files.len()).sum::<usize>() as u32;
+    let fato_len = 12 + offsets.len();
+    let fatb_len = 12 + table.len();
+    let data_at = 0x1C + fato_len + fatb_len + 12;
+    let mut bytes = Vec::new();
+    bytes.extend(b"CRAG\x1C\0\0\0\xFF\xFE\x00\x04\x04\0\0\0");
+    bytes.extend((data_at as u32).to_le_bytes());
+    bytes.extend(((data_at + data.len()) as u32).to_le_bytes());
+    bytes.extend(0u32.to_le_bytes());
+    bytes.extend(b"OTAF");
+    bytes.extend((fato_len as u32).to_le_bytes());
+    bytes.extend((entries.len() as u16).to_le_bytes());
+    bytes.extend(0xFFFFu16.to_le_bytes());
+    bytes.extend(offsets);
+    bytes.extend(b"BTAF");
+    bytes.extend((fatb_len as u32).to_le_bytes());
+    bytes.extend(count.to_le_bytes());
+    bytes.extend(table);
+    bytes.extend(b"BMIF\x0C\0\0\0");
+    bytes.extend((data.len() as u32).to_le_bytes());
+    bytes.extend(data);
+    bytes
+}

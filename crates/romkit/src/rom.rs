@@ -6,6 +6,7 @@ use std::rc::Rc;
 use serde::Serialize;
 
 use crate::formats::Format;
+use crate::formats::garc::{self, Garc};
 use crate::formats::narc::Narc;
 use crate::games::{self, Game, GameId};
 use crate::io::{ByteSource, Window};
@@ -146,18 +147,41 @@ impl<'a> Rom<'a> {
         Ok(self.container()?.file(path)?.read_all()?.into_owned())
     }
 
-    /// The members of the archive at `path`.
+    /// The members of the archive at `path`: a NARC's members, or every file of a GARC's
+    /// entries. Compressed GARC files are listed and read decompressed.
     pub fn archive(&self, path: &str) -> Result<Vec<FileInfo>> {
         let file = self.container()?.file(path)?;
-        let narc = Narc::parse(&file)?;
-        (0..narc.len())
-            .map(|index| describe(index.to_string(), &narc.member_source(&file, index)?))
-            .collect()
+        match Archive::parse(&file)? {
+            Archive::Narc(narc) => (0..narc.len())
+                .map(|index| describe(index.to_string(), &narc.member_source(&file, index)?))
+                .collect(),
+            Archive::Garc(garc) => (0..garc.files().len())
+                .map(|index| {
+                    // Small files are read whole, so that their listing is exact.
+                    let stored = garc.file_source(&file, index)?;
+                    let head = match stored.size() {
+                        size @ ..=0x10000 => stored.read(0, size)?,
+                        _ => stored.read(0, 64)?,
+                    };
+                    let (size, head) = garc::peek(stored.size() as usize, &head);
+                    Ok(FileInfo {
+                        path: index.to_string(),
+                        size: size as u64,
+                        format: Format::sniff(&head),
+                    })
+                })
+                .collect(),
+        }
     }
 
     pub fn read_member(&self, path: &str, index: usize) -> Result<Vec<u8>> {
         let file = self.container()?.file(path)?;
-        Ok(Narc::parse(&file)?.member(&file, index)?.into_owned())
+        Ok(match Archive::parse(&file)? {
+            Archive::Narc(narc) => narc.member(&file, index)?.into_owned(),
+            Archive::Garc(garc) => {
+                garc::unpack(garc.file_source(&file, index)?.read_all()?).into_owned()
+            }
+        })
     }
 
     /// CRC-32 of the whole ROM, read in 1 MiB chunks.
@@ -200,6 +224,21 @@ impl<'a> Rom<'a> {
     }
 }
 
+/// The archives [`Rom::archive`] lists, told apart by their signature.
+enum Archive {
+    Narc(Narc),
+    Garc(Garc),
+}
+
+impl Archive {
+    fn parse(file: &impl ByteSource) -> Result<Self> {
+        match &*file.read_up_to(0, 4)? {
+            b"CRAG" => Ok(Self::Garc(Garc::parse(file)?)),
+            _ => Ok(Self::Narc(Narc::parse(file)?)),
+        }
+    }
+}
+
 fn describe(path: String, file: &impl ByteSource) -> Result<FileInfo> {
     Ok(FileInfo {
         path,
@@ -211,7 +250,7 @@ fn describe(path: String, file: &impl ByteSource) -> Result<FileInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{n3ds, narc, nds};
+    use crate::testing::{garc, n3ds, narc, nds};
 
     #[test]
     fn browses_files_and_archive_members() {
@@ -238,16 +277,40 @@ mod tests {
     }
 
     #[test]
-    fn browses_3ds_files() {
+    fn browses_3ds_files_and_garc_files() {
+        // Two entries: a compressed "NARCNARC", and two files of one entry.
+        let compressed = [
+            0x11,
+            8,
+            0,
+            0,
+            0b0000_1000,
+            b'N',
+            b'A',
+            b'R',
+            b'C',
+            0x30,
+            0x03,
+        ];
+        let archive = garc(&[&[&compressed], &[b"en", b"fr"]]);
         let rom = Rom::open(n3ds(
             "CTR-P-ABCE",
             &[("icon", b"SMDH")],
-            &[("a/0/0/1", b"one")],
+            &[("a/0/0/1", b"one"), ("a/0/0/2", &archive)],
         ))
         .unwrap();
         assert_eq!(rom.identity().platform, Platform::Nintendo3ds);
         let paths: Vec<_> = rom.files().unwrap().into_iter().map(|f| f.path).collect();
-        assert_eq!(paths, ["a/0/0/1", "exefs/icon"]);
+        assert_eq!(paths, ["a/0/0/1", "a/0/0/2", "exefs/icon"]);
         assert_eq!(rom.read_file("a/0/0/1").unwrap(), b"one");
+
+        let files = rom.archive("a/0/0/2").unwrap();
+        assert_eq!(files.len(), 3);
+        assert_eq!(
+            (files[0].size, files[0].format.unwrap().extension),
+            (8, "narc")
+        );
+        assert_eq!(rom.read_member("a/0/0/2", 0).unwrap(), b"NARCNARC");
+        assert_eq!(rom.read_member("a/0/0/2", 2).unwrap(), b"fr");
     }
 }
