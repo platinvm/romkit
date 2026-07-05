@@ -2,3 +2,4 @@
 //! layouts and differ in where they keep things.
 
 pub mod gen4;
+pub mod n3ds;

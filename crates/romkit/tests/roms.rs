@@ -10,6 +10,7 @@ use romkit::formats::garc::{self, Garc};
 use romkit::formats::{Format, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{Gen4, MoveClass, SpeciesId, Type};
+use romkit::games::pokemon::n3ds::{self, N3ds, TextSet};
 use romkit::io::FileSource;
 use romkit::platforms::n3ds::N3dsRom;
 use romkit::platforms::nds::NdsRom;
@@ -240,6 +241,130 @@ fn extracts_gen4_data() {
             serde_json::to_string(&pikachu.evolutions).unwrap()
         );
     }
+}
+
+#[test]
+fn decodes_all_3ds_text() {
+    for path in dumps_3ds() {
+        let name = name(&path);
+        let game = N3ds::open(open(&path)).unwrap();
+        let (mut banks, mut messages) = (0, 0);
+        for language in game.languages() {
+            for set in [TextSet::Game, TextSet::Story] {
+                let text = game.text(set, language).unwrap();
+                for bank in 0..text.len() {
+                    let decoded = text
+                        .bank(bank)
+                        .unwrap_or_else(|error| panic!("{name}: {language} {bank}: {error}"));
+                    banks += 1;
+                    messages += decoded.len();
+                }
+            }
+        }
+        let english = game.text(TextSet::Game, "en").unwrap();
+        let french = game.text(TextSet::Game, "fr").unwrap();
+        let types = (0..english.len())
+            .find(|&bank| {
+                english.strings(bank).unwrap().first().map(String::as_str) == Some("Normal")
+            })
+            .unwrap();
+        assert_eq!(english.strings(types).unwrap()[17], "Fairy", "{name}");
+        assert_eq!(french.strings(types).unwrap()[1], "Combat", "{name}");
+        println!(
+            "{name}: {} languages, {banks} banks, {messages} messages",
+            game.languages().len()
+        );
+    }
+}
+
+#[test]
+fn extracts_3ds_data() {
+    for path in dumps_3ds() {
+        let name = name(&path);
+        let game = N3ds::open(open(&path)).unwrap();
+        let generation7 = ["Sun", "Moon"].iter().any(|title| name.contains(title));
+        let species = game.species().unwrap();
+        let pikachu = &species[24];
+        assert_eq!(pikachu.name.as_deref(), Some("Pikachu"), "{name}");
+        assert_eq!(pikachu.types, [n3ds::Type::Electric; 2]);
+        let stats = &pikachu.base_stats;
+        assert_eq!((stats.hp, stats.defense, stats.speed), (35, 40, 90));
+        assert_eq!(
+            pikachu.abilities.map(|a| a.map(|a| a.0)),
+            [Some(9), Some(9), Some(31)]
+        );
+        assert!(pikachu.machines.contains(&23), "TM24 Thunderbolt");
+        // A Thunder Stone (item 83) makes a Raichu, an Alolan one (form 1) in Alola.
+        let evolution = pikachu.evolutions.last().unwrap();
+        assert_eq!(evolution.method, n3ds::EvolutionMethod::UseItem);
+        assert_eq!((evolution.parameter, evolution.into), (83, SpeciesId(26)));
+        assert_eq!(evolution.form, generation7.then_some(1));
+        assert_eq!(
+            pikachu.z_crystal.map(|z| (z.item.0, z.z_move.0)),
+            generation7.then_some((794, 658)),
+            "Pikanium Z, Catastropika"
+        );
+
+        // Mega Venusaur, and the Alolan Raichu of Generation VII, have records of their own.
+        let form = |species: u16, form: u8| {
+            species_form(species, form, game.species().unwrap())
+                .unwrap_or_else(|| panic!("{name}: no form {form} of {species}"))
+        };
+        assert_eq!(form(3, 1).base_stats.attack, 100);
+        if generation7 {
+            let alolan = form(26, 1);
+            assert!(alolan.regional_form);
+            assert_eq!(alolan.types, [n3ds::Type::Electric, n3ds::Type::Psychic]);
+        }
+        // The last species of the National Pokédex, and the moves and abilities, by generation.
+        let last = species.iter().rfind(|s| s.name.is_some()).unwrap();
+        let counts = (
+            last.id.0,
+            game.moves().unwrap().len(),
+            game.abilities().unwrap().len(),
+        );
+        let expected = match name.split(" (").next().unwrap() {
+            "Pokemon X" | "Pokemon Y" => (721, 617, 188),
+            "Pokemon Omega Ruby" | "Pokemon Alpha Sapphire" => (721, 621, 191),
+            "Pokemon Sun" | "Pokemon Moon" => (802, 719, 232),
+            _ => (807, 728, 233),
+        };
+        assert_eq!(counts, expected, "{name}");
+        // Every record past the National Pokédex is an alternate form of a species.
+        let orphans = species[last.id.0 as usize..]
+            .iter()
+            .filter(|form| form.form_of.is_none())
+            .count();
+        assert_eq!(orphans, 0, "{name}");
+
+        let moves = game.moves().unwrap();
+        let thunderbolt = &moves[84];
+        assert_eq!(thunderbolt.name.as_deref(), Some("Thunderbolt"));
+        assert_eq!((thunderbolt.power, thunderbolt.pp), (90, 15));
+        assert_eq!(thunderbolt.class, n3ds::MoveClass::Special);
+        assert_eq!(thunderbolt.ailment, n3ds::Ailment::Paralysis);
+
+        let abilities = game.abilities().unwrap();
+        assert_eq!(abilities[8].name, "Static");
+        assert!(abilities[8].species.contains(&SpeciesId(25)));
+        println!(
+            "{name}: {} species and forms (last named {:?} #{}), {} moves (last {:?}), {} abilities",
+            species.len(),
+            last.name.as_deref().unwrap_or(""),
+            last.id.0,
+            moves.len(),
+            moves.last().unwrap().name.as_deref().unwrap_or(""),
+            abilities.len(),
+        );
+    }
+}
+
+fn species_form(species: u16, form: u8, all: &[n3ds::Species]) -> Option<&n3ds::Species> {
+    all.iter().find(|candidate| {
+        candidate
+            .form_of
+            .is_some_and(|of| of.species == SpeciesId(species) && of.form == form)
+    })
 }
 
 #[test]

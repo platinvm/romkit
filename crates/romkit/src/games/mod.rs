@@ -14,7 +14,8 @@ pub use catalog::GameId;
 
 use crate::Result;
 use crate::io::ByteSource;
-use pokemon::gen4::{Edition, Gen4};
+use pokemon::gen4::{self, Gen4};
+use pokemon::n3ds::{self, N3ds};
 
 /// A game romkit can extract, seen as a tree of asset files.
 ///
@@ -34,14 +35,22 @@ pub trait Game {
 impl GameId {
     /// Whether romkit can extract this game.
     pub fn is_supported(self) -> bool {
-        Edition::of(self).is_some()
+        gen4::Edition::of(self).is_some() || n3ds::Edition::of(self).is_some()
     }
 }
 
 /// The extractor for `game` over `source`, or `None` when the game is not supported.
 pub fn open<'a>(game: GameId, source: impl ByteSource + 'a) -> Option<Result<Box<dyn Game + 'a>>> {
-    let boxed = |game: Result<_>| game.map(|game| Box::new(game) as Box<dyn Game + 'a>);
-    Edition::of(game).map(|_| boxed(Gen4::open(source)))
+    fn boxed<'a>(game: Result<impl Game + 'a>) -> Result<Box<dyn Game + 'a>> {
+        game.map(|game| Box::new(game) as Box<dyn Game + 'a>)
+    }
+    if gen4::Edition::of(game).is_some() {
+        Some(boxed(Gen4::open(source)))
+    } else if n3ds::Edition::of(game).is_some() {
+        Some(boxed(N3ds::open(source)))
+    } else {
+        None
+    }
 }
 
 /// Data assets are pretty-printed JSON, readable as exported files and in a browser alike.
