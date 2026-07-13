@@ -1,6 +1,7 @@
 //! File formats found inside ROMs, independent of any one game.
 
 pub mod narc;
+pub mod sdat;
 
 use serde::Serialize;
 
