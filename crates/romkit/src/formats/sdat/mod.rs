@@ -7,10 +7,11 @@
 //! archives, banks, wave archives, players, groups, stream players, streams), each to a list:
 //! a count, then one entry per sound. A sound's index is the same in both blocks.
 //!
-//! The files are Nitro formats of their own: sequences (SSEQ, SSAR) are the notes,
+//! The files are Nitro formats of their own: sequences ([`sseq`]: SSEQ, SSAR) are the notes,
 //! banks (SBNK) map notes to waves, wave archives ([`swar`]) hold the samples, and streams
 //! ([`strm`]) are prerecorded audio.
 
+pub mod sseq;
 pub mod strm;
 pub mod swar;
 mod wave;
