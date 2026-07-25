@@ -16,6 +16,7 @@
 
 mod assets;
 mod moves;
+mod sound;
 mod species;
 pub mod text;
 
@@ -31,6 +32,7 @@ pub use species::{
 use text::Text;
 
 use crate::formats::narc::Narc;
+use crate::formats::sdat::Sdat;
 use crate::games::GameId;
 use crate::io::{ByteSource, Window};
 use crate::platforms::nds::NdsRom;
@@ -44,6 +46,7 @@ pub struct Edition {
     learnsets: &'static str,
     moves: &'static str,
     text: &'static str,
+    sound: &'static str,
     species_names: usize,
     move_names: usize,
     move_descriptions: usize,
@@ -59,6 +62,7 @@ const DIAMOND: Edition = Edition {
     learnsets: "poketool/personal/wotbl.narc",
     moves: "poketool/waza/waza_tbl.narc",
     text: "msgdata/msg.narc",
+    sound: "data/sound/sound_data.sdat",
     species_names: 362,
     move_names: 588,
     move_descriptions: 587,
@@ -78,6 +82,7 @@ const PLATINUM: Edition = Edition {
     personal: "poketool/personal/pl_personal.narc",
     moves: "poketool/waza/pl_waza_tbl.narc",
     text: "msgdata/pl_msg.narc",
+    sound: "data/sound/pl_sound_data.sdat",
     species_names: 412,
     move_names: 647,
     move_descriptions: 646,
@@ -94,6 +99,7 @@ const HEARTGOLD_SOULSILVER: Edition = Edition {
     learnsets: "a/0/3/3",
     moves: "a/0/1/1",
     text: "a/0/2/7",
+    sound: "data/sound/gs_sound_data.sdat",
     species_names: 237,
     move_names: 750,
     move_descriptions: 749,
@@ -124,6 +130,7 @@ pub struct Gen4<S> {
     species: OnceLock<Vec<Species>>,
     moves: OnceLock<Vec<Move>>,
     abilities: OnceLock<Vec<Ability>>,
+    sound: OnceLock<Sdat>,
 }
 
 impl<S: ByteSource> Gen4<S> {
@@ -141,6 +148,7 @@ impl<S: ByteSource> Gen4<S> {
             species: OnceLock::new(),
             moves: OnceLock::new(),
             abilities: OnceLock::new(),
+            sound: OnceLock::new(),
         })
     }
 

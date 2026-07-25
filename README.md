@@ -20,6 +20,12 @@ The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 
 `species.json` (stats, types, abilities, evolutions, level-up moves, TM/HM compatibility),
 `moves.json`, `abilities.json`, and every text bank as `text/<bank>.json`.
 
+Gen 4 games also extract their sound archive (SDAT): music and sound effects as MIDI
+(`sound/sequences/SEQ_TOWN01_D.mid`), samples as WAV (`sound/waves/<archive>/<index>.wav`),
+streams (`sound/streams/<name>.wav`), and every Pokémon's cry by National Pokédex number
+(`sound/cries/0025.wav`, plus forms such as `0492-sky.wav`). The SDAT reader and its asset tree
+work for any DS game.
+
 ## Layout
 
 ```text
@@ -28,7 +34,7 @@ crates/
     src/
       io/                ByteSource, Window, FileSource; Reader, the bounds-checked cursor
       platforms/         identify() and one module per handheld; nds/ has NitroFS and the banner
-      formats/           file formats inside ROMs: signature sniffing, NARC archives
+      formats/           file formats inside ROMs: signature sniffing, NARC archives, SDAT sound
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor

@@ -5,6 +5,7 @@
 //! moves.json
 //! abilities.json
 //! text/<bank>.json  one file per text bank, its messages in markup form
+//! sound/...         music as MIDI, samples and cries as WAV (see `sound.rs`)
 //! ```
 
 use serde::Serialize;
@@ -38,7 +39,8 @@ impl<S: ByteSource> Game for Gen4<S> {
         let text = self.text()?;
         let banks =
             (0..text.len()).map(|bank| format!("text/{}.json", bank_stem(bank, text.name(bank))));
-        Ok(TABLES.into_iter().map(str::to_owned).chain(banks).collect())
+        let tables = TABLES.into_iter().map(str::to_owned);
+        Ok(tables.chain(banks).chain(self.sound_assets()?).collect())
     }
 
     fn extract(&self, path: &str) -> Result<Vec<u8>> {
@@ -46,6 +48,7 @@ impl<S: ByteSource> Game for Gen4<S> {
             "species.json" => json(self.species()?),
             "moves.json" => json(self.moves()?),
             "abilities.json" => json(self.abilities()?),
+            _ if path.starts_with("sound/") => self.extract_sound(path),
             _ => {
                 let text = self.text()?;
                 let stem = path
