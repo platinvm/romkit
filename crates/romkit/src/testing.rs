@@ -212,3 +212,23 @@ pub fn sdat(sounds: &[(usize, Option<&str>, u32)], files: &[&[u8]]) -> Vec<u8> {
     bytes.extend(blocks.concat());
     bytes
 }
+
+/// A SWAR holding waves given as `(encoding, loop start in words, data)`.
+pub fn swar(waves: &[(u8, Option<u16>, &[u8])]) -> Vec<u8> {
+    let mut bytes = b"SWAR\xFF\xFE\x00\x01\0\0\0\0\x10\0\x01\0DATA".to_vec();
+    bytes.resize(0x38, 0);
+    bytes.extend((waves.len() as u32).to_le_bytes());
+    let mut at = bytes.len() + 4 * waves.len();
+    for (_, _, data) in waves {
+        bytes.extend((at as u32).to_le_bytes());
+        at += 12 + data.len();
+    }
+    for &(encoding, loop_start, data) in waves {
+        let start = loop_start.unwrap_or(0);
+        bytes.extend([encoding, loop_start.is_some() as u8]);
+        bytes.extend([8000u16, 2095, start].map(u16::to_le_bytes).concat());
+        bytes.extend((data.len() as u32 / 4 - u32::from(start)).to_le_bytes());
+        bytes.extend(data);
+    }
+    bytes
+}

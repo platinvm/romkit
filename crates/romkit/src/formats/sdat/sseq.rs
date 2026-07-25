@@ -39,6 +39,8 @@ const MAX_TICKS: u32 = 1 << 27;
 /// Calls and loops nest at most this deep on the DS.
 const STACK_DEPTH: usize = 3;
 const TRACKS: usize = 16;
+/// Where an SSAR's records start, after their count.
+const RECORDS_AT: usize = 0x20;
 
 /// Convert an SSEQ file.
 pub fn to_midi(sseq: &[u8]) -> Result<Midi> {
@@ -49,7 +51,11 @@ pub fn to_midi(sseq: &[u8]) -> Result<Midi> {
 pub fn archive_len(ssar: &[u8]) -> Result<usize> {
     let mut reader = Reader::new("SSAR", ssar);
     reader.expect(b"SSAR")?;
-    Ok(reader.u32_at(0x1C)? as usize)
+    let count = reader.u32_at(RECORDS_AT - 4)? as usize;
+    match count <= ssar.len().saturating_sub(RECORDS_AT) / 12 {
+        true => Ok(count),
+        false => Err(reader.error_at(RECORDS_AT - 4, "records overrun the file")),
+    }
 }
 
 /// Convert sequence `index` of an SSAR file.
@@ -58,7 +64,7 @@ pub fn archived_to_midi(ssar: &[u8], index: usize) -> Result<Midi> {
     if index >= count {
         return Err(Error::NotFound(format!("sequence {index} of {count}")));
     }
-    let record = index.saturating_mul(12).saturating_add(0x20);
+    let record = RECORDS_AT + 12 * index;
     let start = Reader::new("SSAR", ssar).u32_at(record)?;
     convert(commands("SSAR", ssar)?, start as usize)
 }
