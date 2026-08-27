@@ -13,7 +13,7 @@ romkit is the shared core of two consumers:
 | ---------------- | -------- | --------------------- | ---------------------------------------------- |
 | Game Boy / Color | yes      |                       |                                                |
 | Game Boy Advance | yes      |                       |                                                |
-| Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver |
+| Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver, Black, White, Black 2, White 2 |
 | Nintendo 3DS     | yes      |                       |                                                |
 
 The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 4 games extract
@@ -30,6 +30,10 @@ The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 
 Battle sprite variants are `front`, `front-shiny`, `back`, and `back-shiny`, plus `front-female`,
 `front-shiny-female`, `back-female`, and `back-shiny-female` for species whose females look
 different.
+
+Gen 5 games extract the same tables with their Gen 5 additions (hidden abilities, forms, tutors,
+move effects in detail), `items.json`, and both text archives as `text/main/<bank>.json`
+(names, menus) and `text/story/<bank>.json` (dialogue).
 
 For any DS game, `formats::g2d` decodes the Nitro 2D graphics formats (NCLR palettes, NCGR
 tiles, NCER cells, NSCR screens) to images, and `formats::lz` decompresses LZ77 data.
@@ -49,6 +53,7 @@ crates/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
         pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, assets
+        pokemon/gen5/    the same for Black, White, Black 2, and White 2, plus items
       rom.rs             Rom: any ROM, for hosts that take whatever they are given
     tests/roms.rs        checks against real dumps
   romkit-cli/            the romkit command-line tool
