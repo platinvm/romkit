@@ -18,6 +18,7 @@ mod assets;
 mod moves;
 mod sound;
 mod species;
+mod sprites;
 pub mod text;
 
 use std::sync::OnceLock;
@@ -29,6 +30,8 @@ pub use species::{
     Ability, Color, EggGroup, Evolution, EvolutionMethod, GenderRatio, GrowthRate, HeldItems,
     LevelUpMove, Species, Stats,
 };
+pub use sprites::Variant;
+use sprites::{Archives, Encryption, Layout};
 use text::Text;
 
 use crate::formats::narc::Narc;
@@ -54,6 +57,7 @@ pub struct Edition {
     ability_descriptions: usize,
     /// Descriptive text bank names, one per line; empty when unknown.
     bank_names: &'static str,
+    sprites: Archives,
 }
 
 const DIAMOND: Edition = Edition {
@@ -69,6 +73,19 @@ const DIAMOND: Edition = Edition {
     ability_names: 552,
     ability_descriptions: 554,
     bank_names: "",
+    sprites: Archives {
+        pokemon: "poketool/pokegra/pokegra.narc",
+        pokemon_encryption: Encryption::FromEnd,
+        trainers: Layout {
+            path: "poketool/trgra/trfgra.narc",
+            stride: 2,
+            tiles: 0,
+            palette: 1,
+            encryption: Encryption::FromEnd,
+        },
+        icons: "poketool/icongra/poke_icon.narc",
+        items: "itemtool/itemdata/item_icon.narc",
+    },
 };
 
 /// Pearl's species differ from Diamond's only in their version-exclusive data.
@@ -89,7 +106,24 @@ const PLATINUM: Edition = Edition {
     ability_names: 610,
     ability_descriptions: 612,
     bank_names: text::PLATINUM_BANKS,
+    sprites: Archives {
+        pokemon: "poketool/pokegra/pl_pokegra.narc",
+        pokemon_encryption: Encryption::FromStart,
+        trainers: PLATINUM_TRAINERS,
+        icons: "poketool/icongra/pl_poke_icon.narc",
+        items: "itemtool/itemdata/item_icon.narc",
+    },
     ..DIAMOND
+};
+
+/// Platinum and later keep five members per trainer class: a sheet of parts, the palette, the
+/// cells and animations that assemble the parts, then the whole sprite.
+const PLATINUM_TRAINERS: Layout = Layout {
+    path: "poketool/trgra/trfgra.narc",
+    stride: 5,
+    tiles: 4,
+    palette: 1,
+    encryption: Encryption::FromStart,
 };
 
 /// HeartGold and SoulSilver number their files instead of naming them.
@@ -106,6 +140,17 @@ const HEARTGOLD_SOULSILVER: Edition = Edition {
     ability_names: 720,
     ability_descriptions: 722,
     bank_names: "",
+    sprites: Archives {
+        pokemon: "a/0/0/4",
+        pokemon_encryption: Encryption::FromStart,
+        trainers: Layout {
+            path: "a/0/5/8",
+            encryption: Encryption::FromEnd,
+            ..PLATINUM_TRAINERS
+        },
+        icons: "a/0/2/0",
+        items: "a/0/1/8",
+    },
 };
 
 impl Edition {
@@ -130,6 +175,7 @@ pub struct Gen4<S> {
     species: OnceLock<Vec<Species>>,
     moves: OnceLock<Vec<Move>>,
     abilities: OnceLock<Vec<Ability>>,
+    sprites: OnceLock<sprites::Index>,
     sound: OnceLock<Sdat>,
 }
 
@@ -148,6 +194,7 @@ impl<S: ByteSource> Gen4<S> {
             species: OnceLock::new(),
             moves: OnceLock::new(),
             abilities: OnceLock::new(),
+            sprites: OnceLock::new(),
             sound: OnceLock::new(),
         })
     }
