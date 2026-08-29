@@ -1,5 +1,7 @@
 //! File formats found inside ROMs, independent of any one game.
 
+pub mod g2d;
+pub mod lz;
 pub mod narc;
 pub mod nitro3d;
 

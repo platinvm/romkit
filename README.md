@@ -13,12 +13,30 @@ romkit is the shared core of two consumers:
 | ---------------- | -------- | --------------------- | ---------------------------------------------- |
 | Game Boy / Color | yes      |                       |                                                |
 | Game Boy Advance | yes      |                       |                                                |
-| Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver |
+| Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver, Black, White, Black 2, White 2 |
 | Nintendo 3DS     | yes      |                       |                                                |
 
 The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 4 games extract
 `species.json` (stats, types, abilities, evolutions, level-up moves, TM/HM compatibility),
-`moves.json`, `abilities.json`, and every text bank as `text/<bank>.json`.
+`moves.json`, `abilities.json`, every text bank as `text/<bank>.json`, and sprites as PNG:
+
+| Asset                                     | What                                   |
+| ----------------------------------------- | -------------------------------------- |
+| `sprites/pokemon/<variant>/<species>.png` | 80×80 battle sprites (see below)       |
+| `sprites/icons/<species>.png`             | 32×32 box icons                        |
+| `sprites/trainers/<class>.png`            | 80×80 trainer class sprites            |
+| `sprites/items/<item>.png`                | 32×32 item icons                       |
+
+Battle sprite variants are `front`, `front-shiny`, `back`, and `back-shiny`, plus `front-female`,
+`front-shiny-female`, `back-female`, and `back-shiny-female` for species whose females look
+different.
+
+Gen 5 games extract the same tables with their Gen 5 additions (hidden abilities, forms, tutors,
+move effects in detail), `items.json`, and both text archives as `text/main/<bank>.json`
+(names, menus) and `text/story/<bank>.json` (dialogue).
+
+For any DS game, `formats::g2d` decodes the Nitro 2D graphics formats (NCLR palettes, NCGR
+tiles, NCER cells, NSCR screens) to images, and `formats::lz` decompresses LZ77 data.
 
 Gen 4 games also extract the overworld in 3D as glTF with embedded textures: map terrain
 (`models/maps/<n>.glb`), buildings (`models/buildings/<n>.glb`), and in HeartGold and
@@ -33,12 +51,16 @@ crates/
   romkit/                the library
     src/
       io/                ByteSource, Window, FileSource; Reader, the bounds-checked cursor
-      platforms/         identify() and one module per handheld; nds/ has NitroFS and the banner
-      formats/           file formats inside ROMs: signature sniffing, NARC archives, Nitro 3D
+      platforms/         identify() and one module per handheld; nds/ has NitroFS, the banner,
+                         and the ARM9 binary
+      formats/           file formats inside ROMs: signature sniffing, NARC archives, LZ77,
+                         g2d/ and nitro3d/ (the Nitro 2D and 3D formats)
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
-        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, 3D field, assets
+        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, 3D field,
+                         assets
+        pokemon/gen5/    the same for Black, White, Black 2, and White 2, plus items
       rom.rs             Rom: any ROM, for hosts that take whatever they are given
     tests/roms.rs        checks against real dumps
   romkit-cli/            the romkit command-line tool

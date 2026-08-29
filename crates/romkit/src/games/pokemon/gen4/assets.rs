@@ -5,7 +5,12 @@
 //! moves.json
 //! abilities.json
 //! text/<bank>.json  one file per text bank, its messages in markup form
-//! models/…, textures/…  the overworld in 3D, see [`field`](super::field)
+//! sprites/pokemon/<variant>/<species>.png  80×80 battle sprites: front, back, with -shiny,
+//!                                          and with -female where females look different
+//! sprites/icons/<species>.png              32×32 box icons
+//! sprites/trainers/<class>.png             80×80 trainer class sprites
+//! sprites/items/<item>.png                 32×32 item icons
+//! models/…, textures/…                    the overworld in 3D, see [`field`](super::field)
 //! ```
 
 use serde::Serialize;
@@ -40,7 +45,12 @@ impl<S: ByteSource> Game for Gen4<S> {
         let banks =
             (0..text.len()).map(|bank| format!("text/{}.json", bank_stem(bank, text.name(bank))));
         let tables = TABLES.into_iter().map(str::to_owned);
-        Ok(tables.chain(banks).chain(self.field_assets()?).collect())
+        let field = self.field_assets()?;
+        Ok(tables
+            .chain(banks)
+            .chain(self.sprite_assets()?)
+            .chain(field)
+            .collect())
     }
 
     fn extract(&self, path: &str) -> Result<Vec<u8>> {
@@ -51,6 +61,7 @@ impl<S: ByteSource> Game for Gen4<S> {
             "species.json" => json(self.species()?),
             "moves.json" => json(self.moves()?),
             "abilities.json" => json(self.abilities()?),
+            _ if path.starts_with("sprites/") => self.extract_sprite(path),
             _ => {
                 let text = self.text()?;
                 let stem = path
