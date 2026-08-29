@@ -38,7 +38,7 @@ move effects in detail), `items.json`, and both text archives as `text/main/<ban
 For any DS game, `formats::g2d` decodes the Nitro 2D graphics formats (NCLR palettes, NCGR
 tiles, NCER cells, NSCR screens) to images, and `formats::lz` decompresses LZ77 data.
 
-Gen 4 games also extract their sound archive (SDAT): music and sound effects as MIDI
+Gen 4 and Gen 5 games also extract their sound archive (SDAT): music and sound effects as MIDI
 (`sound/sequences/SEQ_TOWN01_D.mid`), samples as WAV (`sound/waves/<archive>/<index>.wav`),
 streams (`sound/streams/<name>.wav`), and every Pokémon's cry by National Pokédex number
 (`sound/cries/0025.wav`, plus forms such as `0492-sky.wav`). The SDAT reader and its asset tree

@@ -570,3 +570,43 @@ fn extracts_gen4_sound() {
         );
     }
 }
+
+#[test]
+fn extracts_gen5_sound() {
+    let gen5 = ["Black", "White"];
+    for path in dumps()
+        .into_iter()
+        .filter(|path| gen5.iter().any(|game| name(path).contains(game)))
+    {
+        let game = Gen5::open(open(&path)).unwrap();
+        let pikachu = game.cry(gen5::SpeciesId(25)).unwrap();
+        assert_eq!((pikachu.sample_rate, pikachu.samples.len()), (10512, 8236));
+        assert!(sounds_plausible(&game.cry(gen5::SpeciesId(649)).unwrap()));
+
+        let assets = game.assets().unwrap();
+        let count = |prefix| {
+            assets
+                .iter()
+                .filter(|path| path.starts_with(prefix))
+                .count()
+        };
+        let sequel = matches!(game.game(), GameId::PokemonBlack2 | GameId::PokemonWhite2);
+        let expected = match sequel {
+            false => (940, 6050, 0, 650),
+            true => (1390, 8714, 1, 650),
+        };
+        let counts = (
+            count("sound/sequences/"),
+            count("sound/waves/"),
+            count("sound/streams/"),
+            count("sound/cries/"),
+        );
+        assert_eq!(counts, expected);
+        assert!(assets.iter().any(|path| path == "sound/cries/0492-sky.wav"));
+        if sequel {
+            let title = game.extract("sound/streams/STRM_TITLE.wav").unwrap();
+            assert!(title.starts_with(b"RIFF"));
+        }
+        println!("{}: {counts:?}", name(&path));
+    }
+}
