@@ -38,6 +38,12 @@ move effects in detail), `items.json`, and both text archives as `text/main/<ban
 For any DS game, `formats::g2d` decodes the Nitro 2D graphics formats (NCLR palettes, NCGR
 tiles, NCER cells, NSCR screens) to images, and `formats::lz` decompresses LZ77 data.
 
+Gen 4 games also extract the overworld in 3D as glTF with embedded textures: map terrain
+(`models/maps/<n>.glb`), buildings (`models/buildings/<n>.glb`), and in HeartGold and
+SoulSilver indoor furniture (`models/furniture/<n>.glb`); and as PNG the texture sets of maps and
+buildings and the overworld character sprites (`textures/{maps,buildings,overworld}/<n>/<name>.png`).
+Any DS game's 3D models (NSBMD) and textures (NSBTX) convert through `formats::nitro3d`.
+
 ## Layout
 
 ```text
@@ -48,11 +54,12 @@ crates/
       platforms/         identify() and one module per handheld; nds/ has NitroFS, the banner,
                          and the ARM9 binary
       formats/           file formats inside ROMs: signature sniffing, NARC archives, LZ77,
-                         g2d/ (the Nitro 2D graphics formats)
+                         g2d/ and nitro3d/ (the Nitro 2D and 3D formats)
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
-        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, assets
+        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, 3D field,
+                         assets
         pokemon/gen5/    the same for Black, White, Black 2, and White 2, plus items
       rom.rs             Rom: any ROM, for hosts that take whatever they are given
     tests/roms.rs        checks against real dumps

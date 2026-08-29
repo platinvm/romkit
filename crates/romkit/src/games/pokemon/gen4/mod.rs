@@ -15,6 +15,7 @@
 //! ```
 
 mod assets;
+mod field;
 mod moves;
 mod species;
 mod sprites;
@@ -24,6 +25,7 @@ use std::sync::OnceLock;
 
 use serde::Serialize;
 
+pub use field::{ModelSet, TextureSet};
 pub use moves::{ContestType, Move, MoveClass, MoveFlags, MoveTarget};
 pub use species::{
     Ability, Color, EggGroup, Evolution, EvolutionMethod, GenderRatio, GrowthRate, HeldItems,
@@ -170,6 +172,7 @@ pub struct Gen4<S> {
     moves: OnceLock<Vec<Move>>,
     abilities: OnceLock<Vec<Ability>>,
     sprites: OnceLock<sprites::Index>,
+    field: field::Cache,
 }
 
 impl<S: ByteSource> Gen4<S> {
@@ -188,6 +191,7 @@ impl<S: ByteSource> Gen4<S> {
             moves: OnceLock::new(),
             abilities: OnceLock::new(),
             sprites: OnceLock::new(),
+            field: field::Cache::default(),
         })
     }
 

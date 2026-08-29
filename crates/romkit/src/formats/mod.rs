@@ -3,6 +3,7 @@
 pub mod g2d;
 pub mod lz;
 pub mod narc;
+pub mod nitro3d;
 
 use serde::Serialize;
 

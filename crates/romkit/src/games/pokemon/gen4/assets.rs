@@ -10,6 +10,7 @@
 //! sprites/icons/<species>.png              32×32 box icons
 //! sprites/trainers/<class>.png             80×80 trainer class sprites
 //! sprites/items/<item>.png                 32×32 item icons
+//! models/…, textures/…                    the overworld in 3D, see [`field`](super::field)
 //! ```
 
 use serde::Serialize;
@@ -44,10 +45,18 @@ impl<S: ByteSource> Game for Gen4<S> {
         let banks =
             (0..text.len()).map(|bank| format!("text/{}.json", bank_stem(bank, text.name(bank))));
         let tables = TABLES.into_iter().map(str::to_owned);
-        Ok(tables.chain(banks).chain(self.sprite_assets()?).collect())
+        let field = self.field_assets()?;
+        Ok(tables
+            .chain(banks)
+            .chain(self.sprite_assets()?)
+            .chain(field)
+            .collect())
     }
 
     fn extract(&self, path: &str) -> Result<Vec<u8>> {
+        if let Some(asset) = self.extract_field(path) {
+            return asset;
+        }
         match path {
             "species.json" => json(self.species()?),
             "moves.json" => json(self.moves()?),
