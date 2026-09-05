@@ -21,9 +21,11 @@
 //! # Ok::<(), romkit::Error>(())
 //! ```
 
+mod cries;
 mod items;
 mod moves;
 mod species;
+mod sprites;
 pub mod text;
 
 use std::borrow::Cow;
@@ -32,6 +34,7 @@ use std::sync::OnceLock;
 pub use items::{Item, Pocket};
 pub use moves::{Move, MoveTarget};
 pub use species::Species;
+pub use sprites::Variant;
 
 /// Shared with Gen 4, whose records use the same values. Item numbers are Gen 3's own.
 pub use crate::games::pokemon::gen4::{
@@ -49,6 +52,8 @@ const FORMAT: &str = "Gen 3 ROM";
 const ROM_BASE: u32 = 0x0800_0000;
 /// Strings are short; a longer one means a bad pointer.
 const MAX_STRING: u64 = 1024;
+/// Every compressed graphic is smaller; a larger size means a bad pointer.
+const MAX_DECOMPRESSED: usize = 0x8000;
 
 /// Where one dump of a Gen 3 game keeps its tables, as offsets in the ROM.
 #[derive(Debug)]
@@ -80,6 +85,25 @@ pub struct Edition {
     /// Records (44 bytes) per item from 0.
     items: u32,
     item_count: u16,
+    /// Pairs of pointers to each item's compressed icon and palette; Ruby and Sapphire show no
+    /// icons.
+    item_icons: Option<u32>,
+    /// Per sprite: a pointer to the compressed graphic or palette, with its size and tag.
+    front_sprites: u32,
+    back_sprites: u32,
+    palettes: u32,
+    shiny_palettes: u32,
+    /// Per sprite: a pointer to an uncompressed two-frame icon, its palette's number, and the
+    /// palettes themselves.
+    icons: u32,
+    icon_palette_numbers: u32,
+    icon_palettes: u32,
+    trainer_sprites: u32,
+    trainer_palettes: u32,
+    trainer_count: u16,
+    /// Voices (12 bytes) per cry, and the cry of each Hoenn species from Treecko on.
+    cries: u32,
+    hoenn_cries: u32,
 }
 
 /// Ruby, Sapphire, and Emerald: Items, Poké Balls, TMs and HMs, Berries, Key Items.
@@ -118,6 +142,19 @@ const RUBY: Edition = Edition {
     ability_descriptions: 0x1FA110,
     items: 0x3C5564,
     item_count: 349,
+    item_icons: None,
+    front_sprites: 0x1E8354,
+    back_sprites: 0x1E97F4,
+    palettes: 0x1EA5B4,
+    shiny_palettes: 0x1EB374,
+    icons: 0x3BBD20,
+    icon_palette_numbers: 0x3BC400,
+    icon_palettes: 0x3BC5B8,
+    trainer_sprites: 0x1EC53C,
+    trainer_palettes: 0x1EC7D4,
+    trainer_count: 83,
+    cries: 0x452590,
+    hoenn_cries: 0x1FDE6A,
 };
 
 const SAPPHIRE: Edition = Edition {
@@ -139,8 +176,22 @@ const SAPPHIRE: Edition = Edition {
     ability_descriptions: 0x1FA0A0,
     items: 0x3C55BC,
     item_count: 349,
+    item_icons: None,
+    front_sprites: 0x1E82E4,
+    back_sprites: 0x1E9784,
+    palettes: 0x1EA544,
+    shiny_palettes: 0x1EB304,
+    icons: 0x3BBD78,
+    icon_palette_numbers: 0x3BC458,
+    icon_palettes: 0x3BC610,
+    trainer_sprites: 0x1EC4CC,
+    trainer_palettes: 0x1EC764,
+    trainer_count: 83,
+    cries: 0x4525EC,
+    hoenn_cries: 0x1FDDFA,
 };
 
+/// Emerald's front sprites are its still ones; another table holds two-frame animations.
 const EMERALD: Edition = Edition {
     game: GameId::PokemonEmerald,
     code: *b"BPEE",
@@ -160,6 +211,19 @@ const EMERALD: Edition = Edition {
     ability_descriptions: 0x31BAD4,
     items: 0x5839A0,
     item_count: 377,
+    item_icons: Some(0x614410),
+    front_sprites: 0x301418,
+    back_sprites: 0x3028B8,
+    palettes: 0x303678,
+    shiny_palettes: 0x304438,
+    icons: 0x57BCA8,
+    icon_palette_numbers: 0x57C388,
+    icon_palettes: 0x57C540,
+    trainer_sprites: 0x305654,
+    trainer_palettes: 0x30593C,
+    trainer_count: 93,
+    cries: 0x69DCF4,
+    hoenn_cries: 0x31F61C,
 };
 
 const FIRERED: Edition = Edition {
@@ -181,6 +245,19 @@ const FIRERED: Edition = Edition {
     ability_descriptions: 0x24FB08,
     items: 0x3DB028,
     item_count: 375,
+    item_icons: Some(0x3D4294),
+    front_sprites: 0x2350AC,
+    back_sprites: 0x23654C,
+    palettes: 0x23730C,
+    shiny_palettes: 0x2380CC,
+    icons: 0x3D37A0,
+    icon_palette_numbers: 0x3D3E80,
+    icon_palettes: 0x3D4038,
+    trainer_sprites: 0x23957C,
+    trainer_palettes: 0x239A1C,
+    trainer_count: 148,
+    cries: 0x48C914,
+    hoenn_cries: 0x2539D4,
 };
 
 const LEAFGREEN: Edition = Edition {
@@ -202,6 +279,19 @@ const LEAFGREEN: Edition = Edition {
     ability_descriptions: 0x24FAE4,
     items: 0x3DAE64,
     item_count: 375,
+    item_icons: Some(0x3D40D0),
+    front_sprites: 0x235088,
+    back_sprites: 0x236528,
+    palettes: 0x2372E8,
+    shiny_palettes: 0x2380A8,
+    icons: 0x3D35DC,
+    icon_palette_numbers: 0x3D3CBC,
+    icon_palettes: 0x3D3E74,
+    trainer_sprites: 0x239558,
+    trainer_palettes: 0x2399F8,
+    trainer_count: 148,
+    cries: 0x48C1F0,
+    hoenn_cries: 0x2539B0,
 };
 
 /// The dumps whose tables are known: the first USA release of each game.
@@ -290,6 +380,16 @@ impl<S: ByteSource> Gen3<S> {
         .map(Vec::as_slice)
     }
 
+    /// The internal index of a species, by National Pokédex number.
+    fn internal_index(&self, species: SpeciesId) -> Result<usize> {
+        if (1..=NATIONAL_DEX).contains(&species.0)
+            && let Some(index) = self.national_dex()?.iter().position(|&n| n == species.0)
+        {
+            return Ok(index + 1);
+        }
+        Err(Error::NotFound(format!("species {}", species.0)))
+    }
+
     /// `len` bytes at a ROM offset.
     fn read(&self, offset: u32, len: usize) -> Result<Cow<'_, [u8]>> {
         self.source.read(offset.into(), len as u64)
@@ -321,6 +421,25 @@ impl<S: ByteSource> Gen3<S> {
             ));
         }
         Ok(text::decode(&bytes))
+    }
+
+    /// The LZ77 data a pointer at `at` points to, decompressed.
+    fn compressed_at(&self, at: u32) -> Result<Vec<u8>> {
+        let offset = self.follow(at)?;
+        let header = self.read(offset, 4)?;
+        let len = u32::from_le_bytes(*header.first_chunk().expect("4 bytes")) as usize >> 8;
+        if len > MAX_DECOMPRESSED {
+            return Err(Error::malformed(
+                FORMAT,
+                offset.into(),
+                "compressed data too large",
+            ));
+        }
+        // At worst a flag byte per eight literal bytes.
+        let bytes = self
+            .source
+            .read_up_to(offset.into(), (4 + len + len / 8 + 1) as u64)?;
+        crate::formats::lz::decompress(&bytes)
     }
 }
 
@@ -377,5 +496,7 @@ mod tests {
         assert_eq!(game.string_at(0x300).unwrap(), "A");
         // The tables lie past the end of this small ROM.
         assert!(matches!(game.species(), Err(Error::Malformed { .. })));
+        assert!(game.pokemon_sprite(SpeciesId(25), Variant::ALL[0]).is_err());
+        assert!(game.cry(SpeciesId(0)).is_err());
     }
 }
