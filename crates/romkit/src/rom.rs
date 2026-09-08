@@ -1,12 +1,14 @@
 //! [`Rom`]: any ROM, opened for browsing and extraction. The entry point for hosts that do not
 //! know in advance what they will be given, such as the website.
 
+use std::borrow::Cow;
 use std::rc::Rc;
 
 use serde::Serialize;
 
 use crate::formats::Format;
-use crate::formats::garc::{self, Garc};
+use crate::formats::garc::Garc;
+use crate::formats::lz;
 use crate::formats::narc::Narc;
 use crate::games::{self, Game, GameId};
 use crate::io::{ByteSource, Window};
@@ -157,17 +159,20 @@ impl<'a> Rom<'a> {
                 .collect(),
             Archive::Garc(garc) => (0..garc.files().len())
                 .map(|index| {
-                    // Small files are read whole, so that their listing is exact.
+                    // Files that may be compressed are unpacked, so that their listing is exact.
                     let stored = garc.file_source(&file, index)?;
-                    let head = match stored.size() {
-                        size @ ..=0x10000 => stored.read(0, size)?,
-                        _ => stored.read(0, 64)?,
+                    let bytes = match stored.read_up_to(0, 1)?.first() {
+                        Some(0x10 | 0x11) => stored.read_all()?,
+                        _ => stored.read_up_to(0, 4)?,
                     };
-                    let (size, head) = garc::peek(stored.size() as usize, &head);
+                    let (size, format) = match lz::decompress_if_compressed(&bytes) {
+                        Cow::Owned(contents) => (contents.len() as u64, Format::sniff(&contents)),
+                        Cow::Borrowed(head) => (stored.size(), Format::sniff(head)),
+                    };
                     Ok(FileInfo {
                         path: index.to_string(),
-                        size: size as u64,
-                        format: Format::sniff(&head),
+                        size,
+                        format,
                     })
                 })
                 .collect(),
@@ -179,7 +184,8 @@ impl<'a> Rom<'a> {
         Ok(match Archive::parse(&file)? {
             Archive::Narc(narc) => narc.member(&file, index)?.into_owned(),
             Archive::Garc(garc) => {
-                garc::unpack(garc.file_source(&file, index)?.read_all()?).into_owned()
+                lz::decompress_if_compressed(&garc.file_source(&file, index)?.read_all()?)
+                    .into_owned()
             }
         })
     }
