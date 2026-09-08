@@ -21,6 +21,7 @@
 //! # Ok::<(), romkit::Error>(())
 //! ```
 
+mod assets;
 mod cries;
 mod items;
 mod moves;
@@ -477,8 +478,10 @@ mod tests {
         assert!(Gen3::open(rom(b"AXVE", 0, 0x200)).is_ok());
         let unknown = [rom(b"AXVE", 1, 0x200), rom(b"AXVD", 0, 0x200)];
         for rom in unknown {
-            assert!(matches!(Gen3::open(rom), Err(Error::Unsupported(_))));
+            assert!(matches!(Gen3::open(&rom), Err(Error::Unsupported(_))));
+            assert!(crate::games::open(GameId::PokemonRuby, rom.as_slice()).is_none());
         }
+        assert!(GameId::PokemonRuby.is_supported());
     }
 
     #[test]

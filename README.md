@@ -12,7 +12,7 @@ romkit is the shared core of two consumers:
 | Platform         | Identify | Browse files          | Extract data                                   |
 | ---------------- | -------- | --------------------- | ---------------------------------------------- |
 | Game Boy / Color | yes      |                       |                                                |
-| Game Boy Advance | yes      |                       |                                                |
+| Game Boy Advance | yes      |                       | Pokémon Ruby, Sapphire, Emerald, FireRed, LeafGreen (USA) |
 | Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver, Black, White, Black 2, White 2 |
 | Nintendo 3DS     | yes      |                       |                                                |
 
@@ -34,6 +34,13 @@ different.
 Gen 5 games extract the same tables with their Gen 5 additions (hidden abilities, forms, tutors,
 move effects in detail), `items.json`, and both text archives as `text/main/<bank>.json`
 (names, menus) and `text/story/<bank>.json` (dialogue).
+
+Gen 3 games (the first USA release of each) extract `species.json` (with egg moves, and both the
+National Pokédex number and the games' internal index), `moves.json`, `abilities.json`,
+`items.json`, 64×64 battle sprites (`front`, `front-shiny`, `back`, `back-shiny`), 32×32 box
+icons, 64×64 trainer sprites, 24×24 item icons (Emerald, FireRed, LeafGreen), and cries as
+`sound/cries/<species>.wav`, all keyed by National Pokédex number. GBA games have no filesystem,
+so each dump's `Edition` records where its tables are.
 
 For any DS game, `formats::g2d` decodes the Nitro 2D graphics formats (NCLR palettes, NCGR
 tiles, NCER cells, NSCR screens) to images, and `formats::lz` decompresses LZ77 data.
@@ -58,6 +65,8 @@ crates/
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
+        pokemon/gen3/    the Gen3 handle, the Edition table (table offsets), species, moves,
+                         items, text, sprites, cries, assets
         pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, 3D field,
                          assets
         pokemon/gen5/    the same for Black, White, Black 2, and White 2, plus items
