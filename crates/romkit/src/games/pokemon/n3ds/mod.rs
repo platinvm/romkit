@@ -46,7 +46,7 @@ pub const LANGUAGES: [&str; 10] = [
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextSet {
     /// Names, descriptions, and menus.
-    Game,
+    Main,
     /// What characters say.
     Story,
 }
@@ -61,8 +61,8 @@ pub struct Edition {
     evolutions: &'static str,
     learnsets: &'static str,
     moves: &'static str,
-    /// The game text archive of the first language; the others follow in number order.
-    game_text: &'static str,
+    /// The main text archive of the first language; the others follow in number order.
+    main_text: &'static str,
     story_text: &'static str,
     languages: usize,
     species_names: usize,
@@ -79,7 +79,7 @@ const X_Y: Edition = Edition {
     evolutions: "a/2/1/5",
     learnsets: "a/2/1/4",
     moves: "a/2/1/2",
-    game_text: "a/0/7/2",
+    main_text: "a/0/7/2",
     story_text: "a/0/8/0",
     languages: 8,
     species_names: 80,
@@ -96,7 +96,7 @@ const OMEGA_RUBY_ALPHA_SAPPHIRE: Edition = Edition {
     evolutions: "a/1/9/2",
     learnsets: "a/1/9/1",
     moves: "a/1/8/9",
-    game_text: "a/0/7/1",
+    main_text: "a/0/7/1",
     story_text: "a/0/7/9",
     languages: 8,
     species_names: 98,
@@ -113,7 +113,7 @@ const SUN_MOON: Edition = Edition {
     evolutions: "a/0/1/4",
     learnsets: "a/0/1/3",
     moves: "a/0/1/1",
-    game_text: "a/0/3/0",
+    main_text: "a/0/3/0",
     story_text: "a/0/4/0",
     languages: 10,
     species_names: 55,
@@ -146,7 +146,7 @@ impl Edition {
         }
     }
 
-    /// Descriptive names of the game text banks that romkit reads.
+    /// Descriptive names of the main text banks that romkit reads.
     fn bank_name(&self, set: TextSet, bank: usize) -> Option<&'static str> {
         let named = [
             (self.species_names, "species_names"),
@@ -156,7 +156,7 @@ impl Edition {
             (self.ability_descriptions, "ability_descriptions"),
         ];
         let (_, name) = named.into_iter().find(|&(known, _)| known == bank)?;
-        (set == TextSet::Game).then_some(name)
+        (set == TextSet::Main).then_some(name)
     }
 }
 
@@ -166,7 +166,7 @@ pub struct N3ds<S> {
     game: GameId,
     edition: &'static Edition,
     rom: N3dsRom<S>,
-    /// The tables of the text archives: game text by language, then story text.
+    /// The tables of the text archives: main text by language, then story text.
     texts: [OnceLock<Garc>; 2 * LANGUAGES.len()],
     species: OnceLock<Vec<Species>>,
     moves: OnceLock<Vec<Move>>,
@@ -205,7 +205,7 @@ impl<S: ByteSource> N3ds<S> {
         &LANGUAGES[..self.edition.languages]
     }
 
-    /// One language's text, e.g. `text(TextSet::Game, "en")`.
+    /// One language's text, e.g. `text(TextSet::Main, "en")`.
     pub fn text(&self, set: TextSet, language: &str) -> Result<Text<'_, Window<&S>>> {
         let index = self
             .languages()
@@ -213,7 +213,7 @@ impl<S: ByteSource> N3ds<S> {
             .position(|&known| known == language)
             .ok_or_else(|| Error::NotFound(format!("{language} text")))?;
         let (first, slot) = match set {
-            TextSet::Game => (self.edition.game_text, index),
+            TextSet::Main => (self.edition.main_text, index),
             TextSet::Story => (self.edition.story_text, LANGUAGES.len() + index),
         };
         let archive = self.rom.file(&archive_path(first, index))?;
@@ -226,7 +226,7 @@ impl<S: ByteSource> N3ds<S> {
         cached(&self.species, || {
             let edition = self.edition;
             let names = self
-                .text(TextSet::Game, "en")?
+                .text(TextSet::Main, "en")?
                 .strings(edition.species_names)?;
             species::parse(
                 edition,
@@ -242,7 +242,7 @@ impl<S: ByteSource> N3ds<S> {
     /// Every move, indexed by [`MoveId`] from 1.
     pub fn moves(&self) -> Result<&[Move]> {
         cached(&self.moves, || {
-            let text = self.text(TextSet::Game, "en")?;
+            let text = self.text(TextSet::Main, "en")?;
             let names = text.strings(self.edition.move_names)?;
             let descriptions = text.strings(self.edition.move_descriptions)?;
             moves::parse(
@@ -258,7 +258,7 @@ impl<S: ByteSource> N3ds<S> {
     /// Every ability, with the species that can have it.
     pub fn abilities(&self) -> Result<&[Ability]> {
         cached(&self.abilities, || {
-            let text = self.text(TextSet::Game, "en")?;
+            let text = self.text(TextSet::Main, "en")?;
             let names = text.strings(self.edition.ability_names)?;
             let descriptions = text.strings(self.edition.ability_descriptions)?;
             Ok(species::abilities(self.species()?, &names, &descriptions))
@@ -336,7 +336,7 @@ mod tests {
         ];
         assert!(games.into_iter().all(|game| Edition::of(game).is_some()));
         assert!(Edition::of(PokemonPlatinum).is_none());
-        assert_eq!(X_Y.bank_name(TextSet::Game, 80), Some("species_names"));
+        assert_eq!(X_Y.bank_name(TextSet::Main, 80), Some("species_names"));
         assert_eq!(X_Y.bank_name(TextSet::Story, 80), None);
     }
 }

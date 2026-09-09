@@ -497,7 +497,7 @@ fn decodes_all_3ds_text() {
         let game = N3ds::open(open(&path)).unwrap();
         let (mut banks, mut messages) = (0, 0);
         for language in game.languages() {
-            for set in [TextSet::Game, TextSet::Story] {
+            for set in [TextSet::Main, TextSet::Story] {
                 let text = game.text(set, language).unwrap();
                 for bank in 0..text.len() {
                     let decoded = text
@@ -508,8 +508,8 @@ fn decodes_all_3ds_text() {
                 }
             }
         }
-        let english = game.text(TextSet::Game, "en").unwrap();
-        let french = game.text(TextSet::Game, "fr").unwrap();
+        let english = game.text(TextSet::Main, "en").unwrap();
+        let french = game.text(TextSet::Main, "fr").unwrap();
         let types = (0..english.len())
             .find(|&bank| {
                 english.strings(bank).unwrap().first().map(String::as_str) == Some("Normal")

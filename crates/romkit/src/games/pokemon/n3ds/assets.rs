@@ -4,12 +4,12 @@
 //! species.json                       every species and form, with evolutions and level-up moves
 //! moves.json
 //! abilities.json
-//! text/<language>/game/<bank>.json   names, descriptions, and menus, one file per bank
+//! text/<language>/main/<bank>.json   names, descriptions, and menus, one file per bank
 //! text/<language>/story/<bank>.json  what characters say
 //! ```
 //!
 //! Banks are numbered, but the ones romkit reads are named, e.g.
-//! `text/en/game/species_names.json`.
+//! `text/en/main/species_names.json`.
 
 use serde::Serialize;
 
@@ -19,7 +19,7 @@ use crate::io::ByteSource;
 use crate::{Error, Result};
 
 const TABLES: [&str; 3] = ["species.json", "moves.json", "abilities.json"];
-const SETS: [(TextSet, &str); 2] = [(TextSet::Game, "game"), (TextSet::Story, "story")];
+const SETS: [(TextSet, &str); 2] = [(TextSet::Main, "main"), (TextSet::Story, "story")];
 
 #[derive(Serialize)]
 struct TextBank {
@@ -40,7 +40,7 @@ impl<S: ByteSource> N3ds<S> {
             .map_or_else(|| format!("{bank:04}"), str::to_owned)
     }
 
-    /// The text bank at `path`, e.g. `text/en/game/0012.json`.
+    /// The text bank at `path`, e.g. `text/en/main/0012.json`.
     fn text_bank(&self, path: &str) -> Option<Result<Vec<u8>>> {
         let [language, set, file] = path
             .strip_prefix("text/")?
