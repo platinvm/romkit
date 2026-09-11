@@ -53,6 +53,11 @@ Gen 4 games also extract the overworld in 3D as glTF with embedded textures: map
 SoulSilver indoor furniture (`models/furniture/<n>.glb`); and as PNG the texture sets of maps and
 buildings and the overworld character sprites (`textures/{maps,buildings,overworld}/<n>/<name>.png`).
 Any DS game's 3D models (NSBMD) and textures (NSBTX) convert through `formats::nitro3d`.
+Gen 4 and Gen 5 games also extract their sound archive (SDAT): music and sound effects as MIDI
+(`sound/sequences/SEQ_TOWN01_D.mid`), samples as WAV (`sound/waves/<archive>/<index>.wav`),
+streams (`sound/streams/<name>.wav`), and every Pokémon's cry by National Pokédex number
+(`sound/cries/0025.wav`, plus forms such as `0492-sky.wav`). The SDAT reader and its asset tree
+work for any DS game.
 
 ## Layout
 
@@ -64,12 +69,14 @@ crates/
       platforms/         identify() and one module per handheld; nds/ has NitroFS, the banner,
                          and the ARM9 binary; n3ds/ has the ExeFS and the RomFS
       formats/           file formats inside ROMs: signature sniffing, NARC and GARC archives,
-                         LZ77, BCSTM audio, g2d/ and nitro3d/ (the Nitro 2D and 3D formats)
+                         LZ77, BCSTM audio, g2d/ and nitro3d/ (the Nitro 2D and 3D formats),
+                         sdat/ (DS sound archives)
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
-        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, 3D field,
-                         assets
+        sound.rs         any DS sound archive as assets
+        pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, sound,
+                         3D field, assets
         pokemon/gen5/    the same for Black, White, Black 2, and White 2, plus items
         pokemon/n3ds/    the N3ds handle and Edition table for the eight 3DS games
       rom.rs             Rom: any ROM, for hosts that take whatever they are given

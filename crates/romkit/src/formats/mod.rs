@@ -6,6 +6,7 @@ pub mod garc;
 pub mod lz;
 pub mod narc;
 pub mod nitro3d;
+pub mod sdat;
 
 use serde::Serialize;
 

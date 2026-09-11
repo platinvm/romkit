@@ -329,3 +329,98 @@ pub fn garc(entries: &[&[&[u8]]]) -> Vec<u8> {
     bytes.extend(data);
     bytes
 }
+
+/// An SDAT holding `files`, and `sounds` given as `(kind, name, file)`, where `kind` is the index
+/// of the INFO list (0 sequences, 1 sequence archives, 3 wave archives, 7 streams) and a file of
+/// `u32::MAX` leaves the sound without an INFO entry.
+pub fn sdat(sounds: &[(usize, Option<&str>, u32)], files: &[&[u8]]) -> Vec<u8> {
+    let mut symbols = b"SYMB".to_vec();
+    symbols.resize(0x40, 0);
+    let mut info = b"INFO".to_vec();
+    info.resize(0x40, 0);
+    for kind in 0..8 {
+        let sounds: Vec<_> = sounds.iter().filter(|sound| sound.0 == kind).collect();
+        let count = (sounds.len() as u32).to_le_bytes();
+        // Sequence archive names come in pairs: the archive's, then its sequences' (none here).
+        let stride = if kind == 1 { 8 } else { 4 };
+        let (names, entries) = (symbols.len(), info.len());
+        put(&mut symbols, 8 + 4 * kind, &(names as u32).to_le_bytes());
+        symbols.extend(count);
+        symbols.resize(names + 4 + stride * sounds.len(), 0);
+        put(&mut info, 8 + 4 * kind, &(entries as u32).to_le_bytes());
+        info.extend(count);
+        info.resize(entries + 4 + 4 * sounds.len(), 0);
+        for (index, &&(_, name, file)) in sounds.iter().enumerate() {
+            if let Some(name) = name {
+                let at = (symbols.len() as u32).to_le_bytes();
+                put(&mut symbols, names + 4 + stride * index, &at);
+                symbols.extend(name.as_bytes());
+                symbols.push(0);
+            }
+            if file != u32::MAX {
+                let at = (info.len() as u32).to_le_bytes();
+                put(&mut info, entries + 4 + 4 * index, &at);
+                info.extend(file.to_le_bytes());
+                info.extend([0; 8]);
+            }
+        }
+    }
+    let len = (symbols.len() as u32).to_le_bytes();
+    put(&mut symbols, 4, &len);
+    let len = (info.len() as u32).to_le_bytes();
+    put(&mut info, 4, &len);
+
+    let blocks_at = 0x40 + symbols.len() + info.len();
+    let fat_len = 12 + 16 * files.len();
+    let mut fat = b"FAT ".to_vec();
+    fat.extend((fat_len as u32).to_le_bytes());
+    fat.extend((files.len() as u32).to_le_bytes());
+    let mut file_block = b"FILE".to_vec();
+    file_block.extend((16 + files.concat().len() as u32).to_le_bytes());
+    file_block.extend((files.len() as u32).to_le_bytes());
+    file_block.extend([0; 4]);
+    for file in files {
+        let at = blocks_at + fat_len + file_block.len();
+        fat.extend((at as u32).to_le_bytes());
+        fat.extend((file.len() as u32).to_le_bytes());
+        fat.extend([0; 8]);
+        file_block.extend(*file);
+    }
+
+    let mut bytes = b"SDAT\xFF\xFE\x00\x01".to_vec();
+    bytes.resize(0x40, 0);
+    let blocks = [&*symbols, &info, &fat, &file_block];
+    let mut at = 0x40;
+    for (index, block) in blocks.iter().enumerate() {
+        put(&mut bytes, 0x10 + 8 * index, &(at as u32).to_le_bytes());
+        put(
+            &mut bytes,
+            0x14 + 8 * index,
+            &(block.len() as u32).to_le_bytes(),
+        );
+        at += block.len();
+    }
+    put(&mut bytes, 8, &(at as u32).to_le_bytes());
+    bytes.extend(blocks.concat());
+    bytes
+}
+
+/// A SWAR holding waves given as `(encoding, loop start in words, data)`.
+pub fn swar(waves: &[(u8, Option<u16>, &[u8])]) -> Vec<u8> {
+    let mut bytes = b"SWAR\xFF\xFE\x00\x01\0\0\0\0\x10\0\x01\0DATA".to_vec();
+    bytes.resize(0x38, 0);
+    bytes.extend((waves.len() as u32).to_le_bytes());
+    let mut at = bytes.len() + 4 * waves.len();
+    for (_, _, data) in waves {
+        bytes.extend((at as u32).to_le_bytes());
+        at += 12 + data.len();
+    }
+    for &(encoding, loop_start, data) in waves {
+        let start = loop_start.unwrap_or(0);
+        bytes.extend([encoding, loop_start.is_some() as u8]);
+        bytes.extend([8000u16, 2095, start].map(u16::to_le_bytes).concat());
+        bytes.extend((data.len() as u32 / 4 - u32::from(start)).to_le_bytes());
+        bytes.extend(data);
+    }
+    bytes
+}

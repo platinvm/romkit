@@ -7,6 +7,7 @@
 //! items.json
 //! text/main/<bank>.json    one file per system text bank, its messages in markup form
 //! text/story/<bank>.json   one file per story text bank
+//! sound/...                music as MIDI, samples and cries as WAV (see `sound.rs`)
 //! ```
 
 use serde::Serialize;
@@ -39,6 +40,7 @@ impl<S: ByteSource> Game for Gen5<S> {
         ] {
             assets.extend((0..banks).map(|bank| format!("text/{archive}/{bank:04}.json")));
         }
+        assets.extend(self.sound_assets()?);
         Ok(assets)
     }
 
@@ -48,6 +50,7 @@ impl<S: ByteSource> Game for Gen5<S> {
             "moves.json" => json(self.moves()?),
             "abilities.json" => json(self.abilities()?),
             "items.json" => json(self.items()?),
+            _ if path.starts_with("sound/") => self.extract_sound(path),
             _ => {
                 let not_found = || Error::NotFound(path.to_owned());
                 let (archive, file) = path

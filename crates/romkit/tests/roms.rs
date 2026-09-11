@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use romkit::ByteSource;
 use romkit::formats::g2d::{Cells, Palette, Screen, Tiles};
 use romkit::formats::garc::Garc;
+use romkit::formats::sdat::Sdat;
 use romkit::formats::{Format, lz, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{
@@ -16,8 +17,9 @@ use romkit::games::pokemon::gen4::{
 };
 use romkit::games::pokemon::gen5::{self, Gen5};
 use romkit::games::pokemon::n3ds::{self, N3ds, TextSet};
+use romkit::games::sound::Sound;
 use romkit::io::FileSource;
-use romkit::media::Image;
+use romkit::media::{Audio, Image};
 use romkit::platforms::n3ds::N3dsRom;
 use romkit::platforms::nds::NdsRom;
 use romkit::{Game, GameId, Platform, Rom, identify};
@@ -800,5 +802,182 @@ fn decodes_gen4_overworld_textures() {
             "{name}"
         );
         println!("{name}: {count} textures");
+    }
+}
+
+/// Whether decoded audio looks like sound rather than a decoding error: not silent, centered
+/// on zero, and rarely clipped.
+fn sounds_plausible(audio: &Audio) -> bool {
+    let len = audio.samples.len().max(1) as f64;
+    let mean = audio.samples.iter().map(|&s| f64::from(s)).sum::<f64>() / len;
+    let power = audio
+        .samples
+        .iter()
+        .map(|&s| f64::from(s).powi(2))
+        .sum::<f64>();
+    let rms = (power / len).sqrt();
+    let clipped = audio
+        .samples
+        .iter()
+        .filter(|s| s.unsigned_abs() >= 0x7FFF)
+        .count();
+    rms > 300.0 && mean.abs() < rms / 4.0 && (clipped as f64) < len / 100.0
+}
+
+#[test]
+fn decodes_every_ds_sound_archive() {
+    for path in dumps()
+        .into_iter()
+        .filter(|path| path.extension() == Some("nds".as_ref()))
+    {
+        let rom = NdsRom::open(open(&path)).unwrap();
+        for (file, _) in rom.fs().paths().filter(|(file, _)| file.ends_with(".sdat")) {
+            let name = format!("{}: {file}", name(&path));
+            let archive = rom.file(file).unwrap();
+            let sdat = Sdat::parse(&archive).unwrap_or_else(|error| panic!("{name}: {error}"));
+            let sound = Sound::new(&archive, &sdat);
+            let (mut waves, mut plausible) = (0, 0);
+            for (index, _) in sdat
+                .wave_archives
+                .iter()
+                .enumerate()
+                .filter(|(_, a)| a.is_some())
+            {
+                for wave in 0..sound.wave_count(index).unwrap() {
+                    let audio = sound
+                        .wave(index, wave)
+                        .unwrap_or_else(|error| panic!("{name}: wave {index}/{wave}: {error}"));
+                    waves += 1;
+                    plausible += sounds_plausible(&audio) as usize;
+                }
+            }
+            assert!(
+                plausible * 100 >= waves * 95,
+                "{name}: {plausible} of {waves} plausible"
+            );
+            let mut looping = 0;
+            for (index, _) in sdat
+                .sequences
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| s.is_some())
+            {
+                let midi = sound
+                    .sequence(index)
+                    .unwrap_or_else(|error| panic!("{name}: sequence {index}: {error}"))
+                    .to_mid();
+                assert_eq!(&midi[..4], b"MThd");
+                looping += midi.windows(7).any(|window| window == b"loopEnd") as usize;
+            }
+            for (index, _) in sdat.streams.iter().enumerate().filter(|(_, s)| s.is_some()) {
+                assert!(
+                    sounds_plausible(&sound.stream(index).unwrap()),
+                    "{name}: stream {index}"
+                );
+            }
+            println!(
+                "{name}: {waves} waves, {} sequences ({looping} looping), {} streams",
+                sdat.sequences.iter().flatten().count(),
+                sdat.streams.iter().flatten().count(),
+            );
+        }
+    }
+}
+
+#[test]
+fn extracts_gen4_sound() {
+    let gen4 = ["Diamond", "Pearl", "Platinum", "HeartGold", "SoulSilver"];
+    for path in dumps()
+        .into_iter()
+        .filter(|path| gen4.iter().any(|game| name(path).contains(game)))
+    {
+        let game = Gen4::open(open(&path)).unwrap();
+        let pikachu = game.cry(SpeciesId(25)).unwrap();
+        assert_eq!(
+            (pikachu.sample_rate, pikachu.channels, pikachu.samples.len()),
+            (10512, 1, 8236)
+        );
+        assert!(sounds_plausible(&pikachu));
+        assert_eq!(
+            game.extract("sound/cries/0025.wav").unwrap(),
+            pikachu.to_wav()
+        );
+
+        let assets = game.assets().unwrap();
+        let count = |prefix| {
+            assets
+                .iter()
+                .filter(|path| path.starts_with(prefix))
+                .count()
+        };
+        let (sequences, waves, cries, town) = match game.game() {
+            GameId::PokemonDiamond | GameId::PokemonPearl => (829, 817, 493, "SEQ_TOWN01_D"),
+            GameId::PokemonPlatinum => (1013, 874, 494, "SEQ_TOWN01_D"),
+            _ => (1372, 1102, 494, "SEQ_GS_T_WAKABA"),
+        };
+        assert_eq!(
+            (
+                count("sound/sequences/"),
+                count("sound/waves/"),
+                count("sound/cries/")
+            ),
+            (sequences, waves, cries)
+        );
+        // Pokémon Platinum and HeartGold added Shaymin's Sky Forme and its own cry.
+        let sky = assets.iter().any(|path| path == "sound/cries/0492-sky.wav");
+        assert_eq!(sky, cries == 494);
+
+        let midi = game
+            .extract(&format!("sound/sequences/{town}.mid"))
+            .unwrap();
+        assert!(midi.starts_with(b"MThd") && midi.windows(7).any(|w| w == b"loopEnd"));
+        let wave = game
+            .extract("sound/waves/WAVE_ARC_SE_FIELD/0000.wav")
+            .unwrap();
+        assert!(wave.starts_with(b"RIFF"));
+        println!(
+            "{}: {sequences} sequences, {waves} waves, {cries} cries",
+            name(&path)
+        );
+    }
+}
+
+#[test]
+fn extracts_gen5_sound() {
+    let gen5 = ["Black", "White"];
+    for path in dumps()
+        .into_iter()
+        .filter(|path| gen5.iter().any(|game| name(path).contains(game)))
+    {
+        let game = Gen5::open(open(&path)).unwrap();
+        let pikachu = game.cry(gen5::SpeciesId(25)).unwrap();
+        assert_eq!((pikachu.sample_rate, pikachu.samples.len()), (10512, 8236));
+        assert!(sounds_plausible(&game.cry(gen5::SpeciesId(649)).unwrap()));
+
+        let assets = game.assets().unwrap();
+        let count = |prefix| {
+            assets
+                .iter()
+                .filter(|path| path.starts_with(prefix))
+                .count()
+        };
+        let sequel = matches!(game.game(), GameId::PokemonBlack2 | GameId::PokemonWhite2);
+        let expected = match sequel {
+            false => (940, 6050, 0, 650),
+            true => (1390, 8714, 1, 650),
+        };
+        let counts = (
+            count("sound/sequences/"),
+            count("sound/waves/"),
+            count("sound/streams/"),
+            count("sound/cries/"),
+        );
+        assert_eq!(counts, expected);
+        assert!(assets.iter().any(|path| path == "sound/cries/0492-sky.wav"));
+        if sequel {
+            let title = game.extract("sound/streams/STRM_TITLE.wav").unwrap();
+            assert!(title.starts_with(b"RIFF"));
+        }
+        println!("{}: {counts:?}", name(&path));
     }
 }
