@@ -1,6 +1,8 @@
 //! File formats found inside ROMs, independent of any one game.
 
+pub mod bcstm;
 pub mod g2d;
+pub mod garc;
 pub mod lz;
 pub mod narc;
 pub mod nitro3d;
@@ -49,6 +51,18 @@ const SIGNATURES: &[(&[u8; 4], &str, &str)] = &[
     (b"SBNK", "sbnk", "instrument bank"),
     (b"SWAR", "swar", "wave archive"),
     (b"STRM", "strm", "audio stream"),
+    // 3DS formats, mostly CTR SDK ones.
+    (b"CRAG", "garc", "archive"),
+    (b"BCH\0", "bch", "3D models and textures"),
+    (b"CGFX", "bcres", "3D models and textures"),
+    (b"CTPK", "ctpk", "textures"),
+    (b"DARC", "arc", "archive"),
+    (b"SARC", "sarc", "archive"),
+    (b"CSAR", "bcsar", "sound archive"),
+    (b"CSTM", "bcstm", "audio stream"),
+    (b"CWAV", "bcwav", "sound"),
+    (b"DVLB", "shbin", "shader"),
+    (b"SMDH", "smdh", "icon and titles"),
 ];
 
 #[cfg(test)]

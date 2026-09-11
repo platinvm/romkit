@@ -4,7 +4,7 @@
 //!
 //! - [`io`]: [`ByteSource`], random access to bytes that may live in memory, in a file, or
 //!   behind a browser `Blob`. Only the bytes a parser needs are ever read.
-//! - [`platforms`]: what a ROM is, from its header, and the DS filesystem.
+//! - [`platforms`]: what a ROM is, from its header, and the DS and 3DS filesystems.
 //! - [`formats`]: file formats found inside ROMs, such as NARC archives and DS 3D models.
 //! - [`media`]: what romkit produces besides data: images (PNG), audio (WAV), and 3D models
 //!   (glTF).

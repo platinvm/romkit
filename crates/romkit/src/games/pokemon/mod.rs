@@ -3,3 +3,4 @@
 
 pub mod gen4;
 pub mod gen5;
+pub mod n3ds;
