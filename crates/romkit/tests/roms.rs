@@ -11,7 +11,9 @@ use romkit::formats::g2d::{Cells, Palette, Screen, Tiles};
 use romkit::formats::garc::Garc;
 use romkit::formats::{Format, lz, narc::Narc};
 use romkit::games::pokemon::gen4::text::{Text, Token};
-use romkit::games::pokemon::gen4::{Gen4, ItemId, MoveClass, SpeciesId, Type, Variant};
+use romkit::games::pokemon::gen4::{
+    Gen4, ItemId, ModelSet, MoveClass, SpeciesId, TextureSet, Type, Variant,
+};
 use romkit::games::pokemon::gen5::{self, Gen5};
 use romkit::games::pokemon::n3ds::{self, N3ds, TextSet};
 use romkit::io::FileSource;
@@ -678,5 +680,125 @@ fn opens_every_dump_and_exports_supported_games() {
             manifest.assets.len(),
             manifest.crc32
         );
+    }
+}
+
+#[test]
+fn converts_every_gen4_overworld_model_to_valid_gltf() {
+    let gen4 = ["Diamond", "Pearl", "Platinum", "HeartGold", "SoulSilver"];
+    for path in dumps()
+        .into_iter()
+        .filter(|path| gen4.iter().any(|game| name(path).contains(game)))
+    {
+        let name = name(&path);
+        let game = Gen4::open(open(&path)).unwrap();
+        let hgss = name.contains("HeartGold") || name.contains("SoulSilver");
+        let expected = match () {
+            _ if hgss => [676, 340, 222],
+            _ if name.contains("Platinum") => [666, 590, 0],
+            _ => [578, 535, 0],
+        };
+        let sets = [ModelSet::Maps, ModelSet::Buildings, ModelSet::Furniture];
+        let mut names = Vec::new();
+        for (set, expected) in sets.into_iter().zip(expected) {
+            let count = game.model_count(set).unwrap();
+            assert_eq!(count, expected, "{name}: {set:?}");
+            let (mut materials, mut textured, mut narrowest) = (0, 0, f32::MAX);
+            for index in 0..count {
+                let mesh = game
+                    .model(set, index)
+                    .unwrap_or_else(|error| panic!("{name}: {set:?} {index}: {error}"));
+                let (min, max) = mesh.bounds().expect("models have vertices");
+                assert!(
+                    min.iter().chain(&max).all(|c| c.abs() <= 1024.0),
+                    "{name}: {set:?} {index}: {min:?} {max:?}"
+                );
+                narrowest = narrowest.min((max[0] - min[0]).max(max[2] - min[2]));
+                materials += mesh.materials.len();
+                textured += mesh
+                    .materials
+                    .iter()
+                    .filter(|m| m.texture.is_some())
+                    .count();
+                names.push(mesh.name.clone());
+                check_glb(&mesh, &mesh.to_glb().unwrap());
+            }
+            if count > 0 {
+                println!(
+                    "{name}: {count} {set:?}, {textured} of {materials} materials textured, narrowest {narrowest}"
+                );
+                // The rest are untextured by design: shadows, lights, placeholders.
+                assert!(textured * 100 >= materials * 85, "{name}: {set:?}");
+            }
+        }
+        // The Pokémon Center.
+        assert!(names.iter().any(|name| name == "pc"), "{name}");
+    }
+}
+
+/// The GLB parses and validates, and holds the mesh's vertices and textures.
+fn check_glb(mesh: &romkit::media::Mesh, glb: &[u8]) {
+    let gltf = gltf::Gltf::from_slice(glb).expect("valid glTF");
+    let blob = gltf.blob.as_deref().unwrap_or_default();
+    let mut vertices = 0;
+    for primitive in gltf.meshes().flat_map(|mesh| mesh.primitives()) {
+        let reader = primitive.reader(|_| Some(blob));
+        let positions = reader.read_positions().expect("positions").count();
+        let indices = reader.read_indices().expect("indices").into_u32();
+        assert!(indices.clone().all(|index| (index as usize) < positions));
+        vertices += indices.count();
+    }
+    let expected: usize = mesh.primitives.iter().map(|p| p.vertices.len()).sum();
+    assert_eq!(vertices, expected);
+    assert_eq!(gltf.images().count(), mesh.textures.len());
+}
+
+#[test]
+fn decodes_gen4_overworld_textures() {
+    let gen4 = ["Diamond", "Pearl", "Platinum", "HeartGold", "SoulSilver"];
+    for path in dumps()
+        .into_iter()
+        .filter(|path| gen4.iter().any(|game| name(path).contains(game)))
+    {
+        let name = name(&path);
+        let game = Gen4::open(open(&path)).unwrap();
+        let mut count = 0;
+        for set in [
+            TextureSet::Maps,
+            TextureSet::Buildings,
+            TextureSet::Overworld,
+        ] {
+            for (member, names) in game.texture_names(set).unwrap().iter().enumerate() {
+                if names.is_empty() {
+                    continue;
+                }
+                let textures = game.textures(set, member).unwrap();
+                for texture in &textures.textures {
+                    let image = textures
+                        .image(texture, textures.palette_for(texture))
+                        .unwrap_or_else(|error| panic!("{name}: {set:?} {member}: {error}"));
+                    assert_eq!(
+                        image.pixels.len(),
+                        (texture.width * texture.height) as usize
+                    );
+                    count += 1;
+                }
+            }
+        }
+        // A child walking: 16 frames of 32×32, transparent around the sprite.
+        let child = game.textures(TextureSet::Overworld, 0).unwrap();
+        assert_eq!(child.textures.len(), 16, "{name}");
+        let first = &child.textures[0];
+        assert_eq!(
+            (first.name.as_str(), first.width, first.height),
+            ("babyboy1.1", 32, 32)
+        );
+        let image = child.image(first, child.palette_for(first)).unwrap();
+        assert_eq!(image.get(0, 0).unwrap()[3], 0, "{name}");
+        assert!(
+            image.pixels.iter().filter(|p| p[3] == 255).count() > 100,
+            "{name}"
+        );
+        println!("{name}: {count} textures");
     }
 }
