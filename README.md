@@ -39,7 +39,9 @@ The 3DS games (decrypted dumps) extract `species.json` (with alternate forms, hi
 tutors, Z-Crystals), `moves.json` (battle data in detail, Z-Moves), `abilities.json`, and every
 text bank of every language as `text/<language>/main/<bank>.json` and
 `text/<language>/story/<bank>.json`; the banks romkit reads are named, e.g.
-`text/en/main/species_names.json`. Languages are `ja-kana`, `ja-kanji`, `en`, `fr`, `it`, `de`,
+`text/en/main/species_names.json`. Omega Ruby, Alpha Sapphire, and Generation VII also extract
+their music and jingles as `sound/<name>.wav`, decoded from BCSTM streams (X and Y use AAC, which
+romkit does not decode). Languages are `ja-kana`, `ja-kanji`, `en`, `fr`, `it`, `de`,
 `es`, `ko`, and in Generation VII `zh-hans` and `zh-hant`, whose characters stay in the games'
 private-use encoding.
 
@@ -56,7 +58,7 @@ crates/
       platforms/         identify() and one module per handheld; nds/ has NitroFS, the banner,
                          and the ARM9 binary; n3ds/ has the ExeFS and the RomFS
       formats/           file formats inside ROMs: signature sniffing, NARC and GARC archives,
-                         LZ77, g2d/ (the Nitro 2D graphics formats)
+                         LZ77, BCSTM audio, g2d/ (the Nitro 2D graphics formats)
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor

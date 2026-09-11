@@ -1,5 +1,6 @@
 //! File formats found inside ROMs, independent of any one game.
 
+pub mod bcstm;
 pub mod g2d;
 pub mod garc;
 pub mod lz;

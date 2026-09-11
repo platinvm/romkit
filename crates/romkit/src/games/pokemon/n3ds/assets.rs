@@ -6,6 +6,8 @@
 //! abilities.json
 //! text/<language>/main/<bank>.json   names, descriptions, and menus, one file per bank
 //! text/<language>/story/<bank>.json  what characters say
+//! sound/<name>.wav                   music and jingles, from the BCSTM streams of Omega Ruby,
+//!                                    Alpha Sapphire, and Generation VII (X and Y use AAC)
 //! ```
 //!
 //! Banks are numbered, but the ones romkit reads are named, e.g.
@@ -14,6 +16,7 @@
 use serde::Serialize;
 
 use super::{N3ds, TextSet};
+use crate::formats::bcstm;
 use crate::games::{Game, GameId, json};
 use crate::io::ByteSource;
 use crate::{Error, Result};
@@ -33,6 +36,16 @@ struct TextBank {
 }
 
 impl<S: ByteSource> N3ds<S> {
+    /// Every audio stream in the RomFS, as `(asset, file)`: `sound/bgm_x.dspadpcm.bcstm` is
+    /// `sound/bgm_x.wav`.
+    fn streams(&self) -> impl Iterator<Item = (String, &str)> {
+        self.rom.fs().paths().filter_map(|(path, _)| {
+            let name = path.strip_suffix(".bcstm")?.rsplit('/').next()?;
+            let stem = name.split('.').next().unwrap_or(name);
+            Some((format!("sound/{stem}.wav"), path))
+        })
+    }
+
     /// A bank's asset name: its descriptive name where known, else its number.
     fn bank_stem(&self, set: TextSet, bank: usize) -> String {
         self.edition
@@ -82,6 +95,7 @@ impl<S: ByteSource> Game for N3ds<S> {
                 }));
             }
         }
+        assets.extend(self.streams().map(|(asset, _)| asset));
         Ok(assets)
     }
 
@@ -90,6 +104,13 @@ impl<S: ByteSource> Game for N3ds<S> {
             "species.json" => json(self.species()?),
             "moves.json" => json(self.moves()?),
             "abilities.json" => json(self.abilities()?),
+            _ if path.starts_with("sound/") => {
+                let (_, file) = self
+                    .streams()
+                    .find(|(asset, _)| asset == path)
+                    .ok_or_else(|| Error::NotFound(path.to_owned()))?;
+                Ok(bcstm::decode(&self.rom.read(file)?)?.to_wav())
+            }
             _ => self
                 .text_bank(path)
                 .unwrap_or_else(|| Err(Error::NotFound(path.to_owned()))),

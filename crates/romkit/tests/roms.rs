@@ -606,6 +606,45 @@ fn extracts_3ds_data() {
     }
 }
 
+#[test]
+fn decodes_3ds_music() {
+    for path in dumps_3ds() {
+        let name = name(&path);
+        let game = N3ds::open(open(&path)).unwrap();
+        let streams: Vec<String> = game
+            .assets()
+            .unwrap()
+            .into_iter()
+            .filter(|asset| asset.starts_with("sound/"))
+            .collect();
+        // X and Y keep their music as AAC, which romkit does not decode.
+        if name.starts_with("Pokemon X") || name.starts_with("Pokemon Y") {
+            assert!(streams.is_empty());
+            continue;
+        }
+        assert!(streams.len() > 150, "{name}");
+        let unique: std::collections::BTreeSet<_> = streams.iter().collect();
+        assert_eq!(unique.len(), streams.len(), "{name}: streams share a name");
+        for asset in [streams.first().unwrap(), streams.last().unwrap()] {
+            let wav = game.extract(asset).unwrap();
+            let data = wav.windows(4).position(|chunk| chunk == b"data").unwrap() + 8;
+            let samples: Vec<i16> = wav[data..]
+                .as_chunks()
+                .0
+                .iter()
+                .map(|&pair| i16::from_le_bytes(pair))
+                .collect();
+            // Decoded with the wrong coefficients, DSP-ADPCM diverges and clips.
+            let clipped = samples.iter().filter(|s| s.unsigned_abs() >= 32767).count();
+            let loud = samples.iter().filter(|s| s.unsigned_abs() > 1000).count();
+            assert!(clipped * 1000 < samples.len(), "{name}: {asset} clips");
+            assert!(loud * 10 > samples.len(), "{name}: {asset} is silent");
+            println!("{name}: {asset}, {} samples", samples.len());
+        }
+        println!("{name}: {} streams", streams.len());
+    }
+}
+
 fn species_form(species: u16, form: u8, all: &[n3ds::Species]) -> Option<&n3ds::Species> {
     all.iter().find(|candidate| {
         candidate
