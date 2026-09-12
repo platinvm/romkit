@@ -15,7 +15,7 @@ pub use catalog::GameId;
 use crate::Result;
 use crate::io::ByteSource;
 use crate::platforms::identify;
-use pokemon::{gen3, gen4, gen5};
+use pokemon::{gen3, gen4, gen5, n3ds};
 
 /// A game romkit can extract, seen as a tree of asset files.
 ///
@@ -38,6 +38,7 @@ impl GameId {
         gen3::Edition::covers(self)
             || gen4::Edition::of(self).is_some()
             || gen5::Edition::of(self).is_some()
+            || n3ds::Edition::of(self).is_some()
     }
 }
 
@@ -52,6 +53,8 @@ pub fn open<'a>(game: GameId, source: impl ByteSource + 'a) -> Option<Result<Box
         Some(gen4::Gen4::open(source).map(|game| Box::new(game) as _))
     } else if gen5::Edition::of(game).is_some() {
         Some(gen5::Gen5::open(source).map(|game| Box::new(game) as _))
+    } else if n3ds::Edition::of(game).is_some() {
+        Some(n3ds::N3ds::open(source).map(|game| Box::new(game) as _))
     } else {
         None
     }

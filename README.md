@@ -14,7 +14,7 @@ romkit is the shared core of two consumers:
 | Game Boy / Color | yes      |                       |                                                |
 | Game Boy Advance | yes      |                       | Pokémon Ruby, Sapphire, Emerald, FireRed, LeafGreen (USA) |
 | Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver, Black, White, Black 2, White 2 |
-| Nintendo 3DS     | yes      |                       |                                                |
+| Nintendo 3DS     | yes      | ExeFS, RomFS, GARC files | Pokémon X, Y, Omega Ruby, Alpha Sapphire, Sun, Moon, Ultra Sun, Ultra Moon |
 
 The catalog recognizes every mainline Pokémon game from Red to Ultra Moon. Gen 4 games extract
 `species.json` (stats, types, abilities, evolutions, level-up moves, TM/HM compatibility),
@@ -42,6 +42,16 @@ icons, 64×64 trainer sprites, 24×24 item icons (Emerald, FireRed, LeafGreen), 
 `sound/cries/<species>.wav`, all keyed by National Pokédex number. GBA games have no filesystem,
 so each dump's `Edition` records where its tables are.
 
+The 3DS games (decrypted dumps) extract `species.json` (with alternate forms, hidden abilities,
+tutors, Z-Crystals), `moves.json` (battle data in detail, Z-Moves), `abilities.json`, and every
+text bank of every language as `text/<language>/main/<bank>.json` and
+`text/<language>/story/<bank>.json`; the banks romkit reads are named, e.g.
+`text/en/main/species_names.json`. Omega Ruby, Alpha Sapphire, and Generation VII also extract
+their music and jingles as `sound/<name>.wav`, decoded from BCSTM streams (X and Y use AAC, which
+romkit does not decode). Languages are `ja-kana`, `ja-kanji`, `en`, `fr`, `it`, `de`,
+`es`, `ko`, and in Generation VII `zh-hans` and `zh-hant`, whose characters stay in the games'
+private-use encoding.
+
 For any DS game, `formats::g2d` decodes the Nitro 2D graphics formats (NCLR palettes, NCGR
 tiles, NCER cells, NSCR screens) to images, and `formats::lz` decompresses LZ77 data.
 
@@ -59,9 +69,9 @@ crates/
     src/
       io/                ByteSource, Window, FileSource; Reader, the bounds-checked cursor
       platforms/         identify() and one module per handheld; nds/ has NitroFS, the banner,
-                         and the ARM9 binary
-      formats/           file formats inside ROMs: signature sniffing, NARC archives, LZ77,
-                         g2d/ and nitro3d/ (the Nitro 2D and 3D formats)
+                         and the ARM9 binary; n3ds/ has the ExeFS and the RomFS
+      formats/           file formats inside ROMs: signature sniffing, NARC and GARC archives,
+                         LZ77, BCSTM audio, g2d/ and nitro3d/ (the Nitro 2D and 3D formats)
       games/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
@@ -70,6 +80,7 @@ crates/
         pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, 3D field,
                          assets
         pokemon/gen5/    the same for Black, White, Black 2, and White 2, plus items
+        pokemon/n3ds/    the N3ds handle and Edition table for the eight 3DS games
       rom.rs             Rom: any ROM, for hosts that take whatever they are given
     tests/roms.rs        checks against real dumps
   romkit-cli/            the romkit command-line tool
@@ -85,7 +96,7 @@ platforms.
 ## Opinions
 
 - **Read lazily.** Everything reads through `ByteSource`, so opening a 128 MB DS ROM reads about
-  25 KB, a browser reads a dropped file in place, and in-memory ROMs are borrowed, never copied.
+  25 KB and a 4 GB 3DS image about 50 KB, a browser reads a dropped file in place, and in-memory ROMs are borrowed, never copied.
 - **Typed first, files second.** Each game has a typed handle (`Gen4::species()`) for programs.
   The `Game` trait is a uniform view over the same data as asset files (JSON for data), which
   is what the website and the exporter use.
