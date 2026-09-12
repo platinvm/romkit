@@ -20,8 +20,13 @@ pub(super) fn arm9(mut code: Vec<u8>, address: u32, footer: &[u8]) -> Result<Vec
     let params = match footer.u32_at(0) {
         Ok(FOOTER_MAGIC) => footer.u32_at(4)? as usize,
         _ => {
-            let magic = [FOOTER_MAGIC.to_le_bytes(), FOOTER_MAGIC.swap_bytes().to_le_bytes()];
-            let found = code.windows(8).position(|window| window == magic.as_flattened());
+            let magic = [
+                FOOTER_MAGIC.to_le_bytes(),
+                FOOTER_MAGIC.swap_bytes().to_le_bytes(),
+            ];
+            let found = code
+                .windows(8)
+                .position(|window| window == magic.as_flattened());
             match found.and_then(|at| at.checked_sub(PARAMS_MAGIC)) {
                 Some(params) => params,
                 None => return Ok(code),
