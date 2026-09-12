@@ -2,21 +2,32 @@
 //!
 //! The Nitro SDK appends a 12-byte footer after the binary in the ROM: a magic word, then the
 //! offset of the module parameters in the binary. Those hold, at 0x14, the address where the
-//! compressed part of the binary ends once loaded, or 0 when it is not compressed.
+//! compressed part of the binary ends once loaded, or 0 when it is not compressed, and end at
+//! 0x1C with the same magic word followed by its byte-swapped form. DSi-enhanced games leave
+//! the footer out, so the parameters are found by those two words instead.
 
 use crate::io::Reader;
 use crate::{Error, Result};
 
 const FOOTER_MAGIC: u32 = 0xDEC0_0621;
 const COMPRESSED_END: usize = 0x14;
+/// Where the module parameters' magic words start within them.
+const PARAMS_MAGIC: usize = 0x1C;
 
 /// Decompress the ARM9 binary `code`, loaded at `address`, given the `footer` that follows it.
 pub(super) fn arm9(mut code: Vec<u8>, address: u32, footer: &[u8]) -> Result<Vec<u8>> {
     let footer = Reader::new("DS ARM9 footer", footer);
-    if footer.u32_at(0).ok() != Some(FOOTER_MAGIC) {
-        return Ok(code);
-    }
-    let params = footer.u32_at(4)? as usize;
+    let params = match footer.u32_at(0) {
+        Ok(FOOTER_MAGIC) => footer.u32_at(4)? as usize,
+        _ => {
+            let magic = [FOOTER_MAGIC.to_le_bytes(), FOOTER_MAGIC.swap_bytes().to_le_bytes()];
+            let found = code.windows(8).position(|window| window == magic.as_flattened());
+            match found.and_then(|at| at.checked_sub(PARAMS_MAGIC)) {
+                Some(params) => params,
+                None => return Ok(code),
+            }
+        }
+    };
     let end = match Reader::new("DS ARM9", &code).u32_at(params.saturating_add(COMPRESSED_END))? {
         0 => return Ok(code),
         end => end.wrapping_sub(address) as usize,
@@ -135,7 +146,11 @@ mod tests {
         assert_eq!(&out[0x40..0x42], b"ab");
         assert_eq!(out.len(), code.len() + 7);
         assert!(out.ends_with(b"xyztail"));
-        // Without the footer, the binary is taken as stored.
+        // Without the footer or the parameters' magic words, the binary is taken as stored.
         assert_eq!(arm9(code.clone(), 0x2000_0000, &[]).unwrap(), code);
+        // Without the footer, the parameters are found by their magic words.
+        code[PARAMS_MAGIC..PARAMS_MAGIC + 4].copy_from_slice(&FOOTER_MAGIC.to_le_bytes());
+        code[PARAMS_MAGIC + 4..PARAMS_MAGIC + 8].copy_from_slice(&0x2106_C0DEu32.to_le_bytes());
+        assert_eq!(arm9(code, 0x2000_0000, &[]).unwrap()[0x40..], out[0x40..]);
     }
 }
