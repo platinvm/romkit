@@ -11,6 +11,7 @@ use romkit::formats::g2d::{Cells, Palette, Screen, Tiles};
 use romkit::formats::garc::Garc;
 use romkit::formats::sdat::Sdat;
 use romkit::formats::{Format, lz, narc::Narc};
+use romkit::games::pokemon::gen3::{self, Gen3};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{
     Gen4, ItemId, ModelSet, MoveClass, SpeciesId, TextureSet, Type, Variant,
@@ -490,6 +491,108 @@ fn extracts_gen5_data() {
             moves.len(),
             abilities.len(),
             items.len()
+        );
+    }
+}
+
+#[test]
+fn extracts_gen3_data() {
+    let gen3 = ["Ruby", "Sapphire", "Emerald", "FireRed", "LeafGreen"];
+    for path in dumps().into_iter().filter(|path| {
+        path.extension() == Some("gba".as_ref())
+            && gen3.iter().any(|game| name(path).contains(game))
+    }) {
+        let game =
+            Gen3::open(open(&path)).unwrap_or_else(|error| panic!("{}: {error}", name(&path)));
+        let species = game.species().unwrap();
+        assert_eq!(species.len(), 386);
+        let pikachu = &species[24];
+        assert_eq!((pikachu.name.as_str(), pikachu.index), ("PIKACHU", 25));
+        assert_eq!(pikachu.types, [gen3::Type::Electric; 2]);
+        let stats = &pikachu.base_stats;
+        assert_eq!(
+            [
+                stats.hp,
+                stats.attack,
+                stats.defense,
+                stats.speed,
+                stats.special_attack,
+                stats.special_defense
+            ],
+            [35, 55, 30, 90, 50, 40]
+        );
+        assert_eq!(
+            pikachu.abilities,
+            [Some(gen3::AbilityId(9)), None],
+            "Static"
+        );
+        assert_eq!(
+            pikachu.evolutions,
+            [gen3::Evolution {
+                method: gen3::EvolutionMethod::UseItem {
+                    item: gen3::ItemId(96)
+                },
+                into: SpeciesId(26)
+            }]
+        );
+        assert!(pikachu.machines.contains(&23), "TM24 Thunderbolt");
+        assert!(
+            pikachu
+                .level_up_moves
+                .iter()
+                .any(|learned| learned.r#move.0 == 85)
+        );
+        // Hoenn species: internal order differs from the Pokédex's.
+        let treecko = &species[251];
+        assert_eq!((treecko.name.as_str(), treecko.index), ("TREECKO", 277));
+        assert_eq!(treecko.evolutions[0].into, SpeciesId(253));
+        assert!(
+            species[171].egg_moves.contains(&gen3::MoveId(273)),
+            "Pichu, Wish"
+        );
+
+        let thunderbolt = &game.moves().unwrap()[84];
+        assert_eq!(
+            (thunderbolt.name.as_str(), thunderbolt.power),
+            ("THUNDERBOLT", 95)
+        );
+        assert_eq!(thunderbolt.r#type, gen3::Type::Electric);
+        let abilities = game.abilities().unwrap();
+        assert_eq!(abilities[8].name, "STATIC");
+        assert!(abilities[8].species.contains(&SpeciesId(25)));
+
+        let items = game.items().unwrap();
+        assert_eq!(items[95].name, "THUNDERSTONE");
+        assert_eq!((items[12].name.as_str(), items[12].price), ("POTION", 300));
+        // FireRed and LeafGreen number their pockets differently.
+        assert_eq!(
+            (items[288].name.as_str(), items[288].pocket),
+            ("TM01", gen3::Pocket::Machines)
+        );
+
+        let sprite = game
+            .pokemon_sprite(SpeciesId(25), gen3::Variant::ALL[1])
+            .unwrap();
+        assert_eq!((sprite.width, sprite.height), (64, 64));
+        assert_eq!(sprite.get(0, 0).unwrap()[3], 0, "transparent corner");
+        assert!(sprite.pixels.iter().any(|pixel| pixel[3] != 0));
+        let icon = game.pokemon_icon(SpeciesId(252)).unwrap();
+        assert_eq!((icon.width, icon.height), (32, 32));
+        assert_eq!(
+            game.item_icon(gen3::ItemId(1)).is_ok(),
+            game.has_item_icons()
+        );
+        let cry = game.cry(SpeciesId(25)).unwrap();
+        assert_eq!(cry.sample_rate, 10512);
+        assert!(cry.samples.len() > 5000);
+        println!(
+            "{}: {} species, {} moves, {} abilities, {} items, {} trainer sprites",
+            name(&path),
+            species.len(),
+            game.moves().unwrap().len(),
+            abilities.len(),
+            items.len(),
+            game.trainer_sprite_count()
         );
     }
 }

@@ -2,6 +2,7 @@
 //! layouts and differ in where they keep things.
 
 pub mod cries;
+pub mod gen3;
 pub mod gen4;
 pub mod gen5;
 pub mod n3ds;
