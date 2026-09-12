@@ -11,6 +11,7 @@
 //! sprites/trainers/<class>.png             80×80 trainer class sprites
 //! sprites/items/<item>.png                 32×32 item icons
 //! models/…, textures/…                    the overworld in 3D, see [`field`](super::field)
+//! sound/...                                music as MIDI, samples and cries as WAV (`sound.rs`)
 //! ```
 
 use serde::Serialize;
@@ -50,6 +51,7 @@ impl<S: ByteSource> Game for Gen4<S> {
             .chain(banks)
             .chain(self.sprite_assets()?)
             .chain(field)
+            .chain(self.sound_assets()?)
             .collect())
     }
 
@@ -62,6 +64,7 @@ impl<S: ByteSource> Game for Gen4<S> {
             "moves.json" => json(self.moves()?),
             "abilities.json" => json(self.abilities()?),
             _ if path.starts_with("sprites/") => self.extract_sprite(path),
+            _ if path.starts_with("sound/") => self.extract_sound(path),
             _ => {
                 let text = self.text()?;
                 let stem = path

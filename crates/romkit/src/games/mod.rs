@@ -7,6 +7,7 @@
 
 mod catalog;
 pub mod pokemon;
+pub mod sound;
 
 use serde::Serialize;
 
