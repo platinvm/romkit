@@ -18,6 +18,7 @@
 mod assets;
 mod items;
 mod moves;
+mod sound;
 mod species;
 mod sprites;
 pub mod text;
@@ -40,6 +41,7 @@ pub use crate::games::pokemon::gen4::{
 use sprites::Archives;
 
 use crate::formats::narc::Narc;
+use crate::formats::sdat::Sdat;
 use crate::games::GameId;
 use crate::io::{ByteSource, Window};
 use crate::platforms::nds::NdsRom;
@@ -56,7 +58,8 @@ const TEXT: &str = "a/0/0/2";
 /// Story text: what people say on each map.
 const STORY_TEXT: &str = "a/0/0/3";
 
-/// Where a Gen 5 game keeps the names and descriptions of its data, as banks of its system text.
+/// Where a Gen 5 game keeps the names and descriptions of its data, as banks of its system text,
+/// and its sound archive.
 #[derive(Debug)]
 pub struct Edition {
     species_names: usize,
@@ -67,6 +70,7 @@ pub struct Edition {
     item_names: usize,
     item_descriptions: usize,
     sprites: Archives,
+    sound: &'static str,
 }
 
 const BLACK_WHITE: Edition = Edition {
@@ -82,6 +86,7 @@ const BLACK_WHITE: Edition = Edition {
         forms: 652,
         first_icon: 7,
     },
+    sound: "wb_sound_data.sdat",
 };
 
 const BLACK2_WHITE2: Edition = Edition {
@@ -97,6 +102,7 @@ const BLACK2_WHITE2: Edition = Edition {
         forms: 685,
         first_icon: 8,
     },
+    sound: "swan_sound_data.sdat",
 };
 
 impl Edition {
@@ -122,6 +128,7 @@ pub struct Gen5<S> {
     abilities: OnceLock<Vec<Ability>>,
     items: OnceLock<Vec<Item>>,
     sprites: OnceLock<sprites::Index>,
+    sound: OnceLock<Sdat>,
 }
 
 impl<S: ByteSource> Gen5<S> {
@@ -142,6 +149,7 @@ impl<S: ByteSource> Gen5<S> {
             abilities: OnceLock::new(),
             items: OnceLock::new(),
             sprites: OnceLock::new(),
+            sound: OnceLock::new(),
         })
     }
 

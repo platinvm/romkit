@@ -12,6 +12,7 @@
 //! sprites/icons/<species>.png              32×32 box icons, and icons-female/ where they differ
 //! sprites/trainers/<class>.png             80×80 trainer class sprites
 //! sprites/items/<item>.png                 32×32 item icons
+//! sound/...                music as MIDI, samples and cries as WAV (see `sound.rs`)
 //! ```
 //!
 //! An alternate form's sprites and icon are named after its species and form number, e.g.
@@ -48,6 +49,7 @@ impl<S: ByteSource> Game for Gen5<S> {
             assets.extend((0..banks).map(|bank| format!("text/{archive}/{bank:04}.json")));
         }
         assets.extend(self.sprite_assets()?);
+        assets.extend(self.sound_assets()?);
         Ok(assets)
     }
 
@@ -58,6 +60,7 @@ impl<S: ByteSource> Game for Gen5<S> {
             "abilities.json" => json(self.abilities()?),
             "items.json" => json(self.items()?),
             _ if path.starts_with("sprites/") => self.extract_sprite(path),
+            _ if path.starts_with("sound/") => self.extract_sound(path),
             _ => {
                 let not_found = || Error::NotFound(path.to_owned());
                 let (archive, file) = path
