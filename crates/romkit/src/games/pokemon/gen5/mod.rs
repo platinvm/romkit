@@ -20,6 +20,7 @@ mod items;
 mod moves;
 mod sound;
 mod species;
+mod sprites;
 pub mod text;
 
 use std::sync::OnceLock;
@@ -35,8 +36,9 @@ use text::Text;
 /// Pokédex number up to 649, then the records of alternate forms.
 pub use crate::games::pokemon::gen4::{
     AbilityId, Color, EggGroup, GenderRatio, GrowthRate, ItemId, LevelUpMove, MoveId, SpeciesId,
-    Stats,
+    Stats, Variant,
 };
+use sprites::Archives;
 
 use crate::formats::narc::Narc;
 use crate::formats::sdat::Sdat;
@@ -67,6 +69,7 @@ pub struct Edition {
     ability_descriptions: usize,
     item_names: usize,
     item_descriptions: usize,
+    sprites: Archives,
     sound: &'static str,
 }
 
@@ -78,6 +81,11 @@ const BLACK_WHITE: Edition = Edition {
     ability_descriptions: 183,
     item_names: 54,
     item_descriptions: 53,
+    sprites: Archives {
+        trainers: "a/0/7/2",
+        forms: 652,
+        first_icon: 7,
+    },
     sound: "wb_sound_data.sdat",
 };
 
@@ -89,6 +97,11 @@ const BLACK2_WHITE2: Edition = Edition {
     ability_descriptions: 375,
     item_names: 64,
     item_descriptions: 63,
+    sprites: Archives {
+        trainers: "a/0/7/1",
+        forms: 685,
+        first_icon: 8,
+    },
     sound: "swan_sound_data.sdat",
 };
 
@@ -114,6 +127,7 @@ pub struct Gen5<S> {
     moves: OnceLock<Vec<Move>>,
     abilities: OnceLock<Vec<Ability>>,
     items: OnceLock<Vec<Item>>,
+    sprites: OnceLock<sprites::Index>,
     sound: OnceLock<Sdat>,
 }
 
@@ -134,6 +148,7 @@ impl<S: ByteSource> Gen5<S> {
             moves: OnceLock::new(),
             abilities: OnceLock::new(),
             items: OnceLock::new(),
+            sprites: OnceLock::new(),
             sound: OnceLock::new(),
         })
     }

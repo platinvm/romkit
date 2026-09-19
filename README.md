@@ -32,8 +32,12 @@ Battle sprite variants are `front`, `front-shiny`, `back`, and `back-shiny`, plu
 different.
 
 Gen 5 games extract the same tables with their Gen 5 additions (hidden abilities, forms, tutors,
-move effects in detail), `items.json`, and both text archives as `text/main/<bank>.json`
-(names, menus) and `text/story/<bank>.json` (dialogue).
+move effects in detail), `items.json`, both text archives as `text/main/<bank>.json`
+(names, menus) and `text/story/<bank>.json` (dialogue), and the same sprites: 96×96 battle
+sprites, 32×32 icons (with `sprites/icons-female/` where females differ), 80×80 trainer sprites
+(the first frame of the animated ones in Black 2 and White 2), and 32×32 item icons. Alternate
+forms with sprites of their own are named after species and form number, e.g.
+`sprites/pokemon/front/0386-1.png` for Deoxys's Attack Forme.
 
 Gen 3 games (the first USA release of each) extract `species.json` (with egg moves, and both the
 National Pokédex number and the games' internal index), `moves.json`, `abilities.json`,
