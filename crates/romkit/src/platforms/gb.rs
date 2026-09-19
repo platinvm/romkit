@@ -10,8 +10,44 @@ const HEADER_END: usize = 0x150;
 /// Set in the CGB flag (0x143) by cartridges that use Game Boy Color features.
 const CGB: u8 = 0x80;
 
+/// Cartridges are read in 16 KB banks: bank 0 is always mapped at 0x0000, and one other bank
+/// at a time is switched in at 0x4000.
+pub const BANK_SIZE: u64 = 0x4000;
+
+/// A location in ROM as the game's code names it: a bank and the address it has while that
+/// bank is switched in. Addresses below 0x4000 are in bank 0 whatever the bank says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FarPointer {
+    pub bank: u8,
+    pub address: u16,
+}
+
+impl FarPointer {
+    pub const fn new(bank: u8, address: u16) -> Self {
+        Self { bank, address }
+    }
+
+    /// Where it points in the ROM image, or `None` for an address outside ROM (0x8000 and up).
+    pub fn offset(self) -> Option<u64> {
+        match self.address {
+            0..0x4000 => Some(self.address.into()),
+            0x4000..0x8000 => {
+                Some(u64::from(self.bank) * BANK_SIZE + u64::from(self.address) - BANK_SIZE)
+            }
+            _ => None,
+        }
+    }
+}
+
 pub fn is_gb(head: &[u8]) -> bool {
     head.len() >= HEADER_END && head[0x104..0x108] == LOGO
+}
+
+/// The checksum of the whole ROM stored in the header (big-endian, at 0x14E). Releases that share
+/// a title, such as a game's languages and revisions, tell apart by it.
+pub fn global_checksum(head: &[u8]) -> Result<u16> {
+    let bytes = Reader::new("Game Boy header", head).array_at(0x14E)?;
+    Ok(u16::from_be_bytes(bytes))
 }
 
 pub fn identify(head: &[u8]) -> Result<Identity> {
@@ -64,6 +100,13 @@ mod tests {
         let yellow = identify(&header(b"POKEMON YELLOW\0", 0x80)).unwrap();
         assert_eq!(yellow.title, "POKEMON YELLOW");
         assert_eq!(yellow.code, None);
+    }
+
+    #[test]
+    fn far_pointers_map_banks_into_the_image() {
+        assert_eq!(FarPointer::new(0x0E, 0x43DE).offset(), Some(0x383DE));
+        assert_eq!(FarPointer::new(0x0E, 0x0150).offset(), Some(0x150));
+        assert_eq!(FarPointer::new(0x01, 0xC000).offset(), None);
     }
 
     #[test]
