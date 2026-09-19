@@ -9,7 +9,9 @@
 //!
 //! The front and back members are the whole sprite, unanimated: 96×96 pixels as 8×8 tiles in
 //! the order of the hardware objects that draw them, a 64×64 block, the 32×64 to its right,
-//! the 64×32 below, and the 32×32 corner. Trainer sprites are the same at 80×80.
+//! the 64×32 below, and the 32×32 corner. Trainer sprites are the same at 80×80, except
+//! that Black 2 and White 2 leave that member blank for the trainers they animate; those are
+//! drawn from their parts as the first frame of their animation.
 //!
 //! Icons are 32×32 tiles in 1D order, two members per entry (male, then female when it
 //! differs). Their palette banks, and the icon of each item, are tables in the ARM9 binary,
@@ -19,7 +21,7 @@ use super::{Gen5, ItemId, PERSONAL, SpeciesId, Variant, cached};
 use crate::formats::g2d::{Cell, Cells, Object, Palette, Tiles};
 use crate::formats::lz;
 use crate::formats::narc::Narc;
-use crate::io::ByteSource;
+use crate::io::{ByteSource, Reader};
 use crate::media::Image;
 use crate::{Error, Result};
 
@@ -34,9 +36,12 @@ const ENTRY_LEN: usize = 20;
 /// Arceus's forms differ only in palette; the archive keeps those palettes apart, so its
 /// forms are not exported.
 const ARCEUS: usize = 493;
-/// Members of a trainer class: the sprite, its parts, cells and animations, then the palette.
+/// Members of a trainer class: the sprite, its parts, their cells, cell animations, and
+/// multi-cells (cells placed together), then multi-cell animations, an unknown member, and
+/// the palette.
 const TRAINER_LEN: usize = 8;
 const TRAINER_PALETTE: usize = 7;
+const TRAINER_SIZE: u32 = 80;
 
 /// The blocks a static sprite's tiles fill, in order: left, top, width, height.
 const POKEMON_BLOCKS: [(i16, i16, u8, u8); 4] = [
@@ -161,13 +166,26 @@ impl<S: ByteSource> Gen5<S> {
         }
         let archive = self.rom.file(self.edition.sprites.trainers)?;
         let base = class * TRAINER_LEN;
-        let tiles = Tiles::parse(&member(&index.trainers, &archive, base)?)?;
-        let palette = member(&index.trainers, &archive, base + TRAINER_PALETTE)?;
-        Ok(assemble(
-            &tiles,
-            &Palette::parse(&palette)?,
-            &TRAINER_BLOCKS,
-        ))
+        let get = |offset| member(&index.trainers, &archive, base + offset);
+        let tiles = Tiles::parse(&get(0)?)?;
+        let palette = Palette::parse(&get(TRAINER_PALETTE)?)?;
+        if tiles.data.iter().any(|&byte| byte != 0) {
+            return Ok(assemble(&tiles, &palette, &TRAINER_BLOCKS));
+        }
+        let mut parts = Tiles::parse(&get(1)?)?;
+        into_tiles(&mut parts);
+        let cells = Cells::parse(&get(2)?)?;
+        // Placed with their origin at the bottom center, where the trainer stands.
+        let mut image = Image::new(TRAINER_SIZE, TRAINER_SIZE);
+        for (cell, x, y) in first_frame(&get(4)?, &get(3)?)?.into_iter().rev() {
+            let (left, top, _, _) = cells.cells.get(cell).map_or((0, 0, 0, 0), Cell::bounds);
+            let (x, y) = (
+                x + left + TRAINER_SIZE as i32 / 2,
+                y + top + TRAINER_SIZE as i32,
+            );
+            image.draw(&cells.image(cell, &parts, &palette), x, y);
+        }
+        Ok(image)
     }
 
     /// An item's icon, 32×32.
@@ -376,6 +394,68 @@ fn assemble(tiles: &Tiles, palette: &Palette, blocks: &[(i16, i16, u8, u8)]) -> 
     cells.image(0, tiles, palette)
 }
 
+/// Where the first multi-cell places its cells: each node's cell, and its position relative
+/// to the origin, in the order drawn on top first.
+///
+/// An NMCR's `KBCM` chunk, the first after the header, holds the multi-cell count, the
+/// offsets of the multi-cell table and of the nodes; a multi-cell entry holds its node count
+/// and the offset of its nodes, 8 bytes each: a cell animation, x, and y. An NANR's `KNBA`
+/// chunk holds the animation count and the offsets of the animation table (16 bytes per
+/// animation, with its element type at 4 and the offset of its frames at 12), the frames (the
+/// offset of each frame's element first), and the elements, which start with a cell number.
+/// Translation elements (type 2) move the cell by the x and y at 4.
+fn first_frame(multi_cells: &[u8], animations: &[u8]) -> Result<Vec<(usize, i32, i32)>> {
+    const CHUNK: usize = 0x18;
+    Reader::new("NMCR", multi_cells).expect(b"RCMN")?;
+    Reader::new("NANR", animations).expect(b"RNAN")?;
+    let (nmcr, nanr) = (
+        Reader::new("NMCR", multi_cells),
+        Reader::new("NANR", animations),
+    );
+    let table = CHUNK + nmcr.u32_at(CHUNK + 4)? as usize;
+    let nodes = CHUNK + nmcr.u32_at(CHUNK + 8)? as usize + nmcr.u32_at(table + 4)? as usize;
+    let offset = |at: usize| {
+        nanr.u32_at(CHUNK + at)
+            .map(|offset| CHUNK + offset as usize)
+    };
+    let (sequences, frames, elements) = (offset(4)?, offset(8)?, offset(12)?);
+    let signed = |reader: &Reader, at: usize| reader.u16_at(at).map(|value| value as i16 as i32);
+    (0..nmcr.u16_at(table)? as usize)
+        .map(|node| {
+            let at = nodes + node * 8;
+            let sequence = sequences + nmcr.u16_at(at)? as usize * 16;
+            let frame = frames + nanr.u32_at(sequence + 12)? as usize;
+            let element = elements + nanr.u32_at(frame)? as usize;
+            let (mut x, mut y) = (signed(&nmcr, at + 2)?, signed(&nmcr, at + 4)?);
+            if nanr.u16_at(sequence + 4)? == 2 {
+                x += signed(&nanr, element + 4)?;
+                y += signed(&nanr, element + 6)?;
+            }
+            Ok((nanr.u16_at(element)? as usize, x, y))
+        })
+        .collect()
+}
+
+/// Reorder a bitmap's pixels into 8×8 tiles, row by row across the sheet, as cells in the 2D
+/// mapping read them.
+fn into_tiles(tiles: &mut Tiles) {
+    let Some((width, _)) = tiles.size.filter(|_| !tiles.tiled) else {
+        return;
+    };
+    let (width, tile_len) = (width as usize, tiles.depth.tile_len());
+    let line = tile_len / 8;
+    let mut data = Vec::with_capacity(tiles.data.len());
+    for tile in 0..tiles.data.len() / tile_len {
+        let (x, y) = (tile % width, tile / width);
+        for row in 0..8 {
+            let at = (y * 8 + row) * width * line + x * line;
+            data.extend(tiles.data.get(at..at + line).unwrap_or(&[0; 8][..line]));
+        }
+    }
+    tiles.data = data;
+    tiles.tiled = true;
+}
+
 /// A 32×32 icon: the first frame of its tiles, in 1D order.
 fn icon<A: ByteSource>(
     narc: &Narc,
@@ -395,4 +475,87 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::formats::g2d::Depth;
+
+    fn tiles(size: (u16, u16), tiled: bool, data: Vec<u8>) -> Tiles {
+        Tiles {
+            size: Some(size),
+            depth: Depth::Four,
+            step: None,
+            tiled,
+            data,
+        }
+    }
+
+    #[test]
+    fn finds_code_tables_by_their_first_entries() {
+        let code = [&[0xAA; 3][..], &ICON_BANKS_START, &[0x10, 0x02]].concat();
+        assert_eq!(icon_banks(&code, 28)[25..], [0x22, 0x10, 0x02]);
+        assert!(icon_banks(&code, 29).is_empty());
+
+        // The placeholder, items 1 to 10, then something that is not an item.
+        let words = [&[30, 31][..], &ITEMS_START, &[0xFFFF, 0]].concat();
+        let code: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+        let items = item_icons_table(&[&[0xAA; 3][..], &code].concat(), 40);
+        assert_eq!(items.len(), 11);
+        assert_eq!(
+            (items[0], items[1], items[10]),
+            ((30, 31), (2, 3), (20, 19))
+        );
+        assert!(item_icons_table(&[0; 64], 40).is_empty());
+    }
+
+    #[test]
+    fn assembles_static_sprites_block_by_block() {
+        // 144 tiles; tile 64 (the first of the 32×64 block) has index 1 at its top left.
+        let mut data = vec![0; 144 * 32];
+        data[64 * 32] = 0x01;
+        let palette = Palette {
+            colors: vec![[0; 4], [255, 0, 0, 255]],
+        };
+        let image = assemble(&tiles((12, 12), true, data), &palette, &POKEMON_BLOCKS);
+        assert_eq!((image.width, image.height), (96, 96));
+        assert_eq!(image.get(64, 0), Some([255, 0, 0, 255]));
+        assert_eq!(image.get(0, 0), Some([0; 4]));
+    }
+
+    #[test]
+    fn reorders_bitmaps_into_tiles() {
+        // A 16×8 bitmap: the second tile's first row is all 2s.
+        let mut data = vec![0; 64];
+        data[4..8].copy_from_slice(&[0x22; 4]);
+        let mut sheet = tiles((2, 1), false, data);
+        into_tiles(&mut sheet);
+        assert!(sheet.tiled);
+        assert_eq!(sheet.tile(1)[..8], [2; 8]);
+        assert_eq!(sheet.tile(0), [0; 64]);
+    }
+
+    #[test]
+    fn places_the_first_frame_of_multi_cells() {
+        use crate::formats::g2d::testing::{nitro, words};
+        // One multi-cell of one node: animation 1 at (-5, -40).
+        let mut kbcm = words(&[1, 0]);
+        kbcm.extend([12u32, 20].iter().flat_map(|v| v.to_le_bytes()));
+        kbcm.extend(words(&[1, 1, 0, 0]));
+        kbcm.extend(words(&[1, -5i16 as u16, -40i16 as u16, 0]));
+        // Two translation animations, each of one frame; the second shows cell 3 at (2, 1).
+        let mut knba = words(&[2, 2]);
+        knba.extend([16u32, 48, 64].iter().flat_map(|v| v.to_le_bytes()));
+        for frames in [0u32, 8] {
+            knba.extend(words(&[1, 0, 2, 0]));
+            knba.extend([1, frames].iter().flat_map(|v: &u32| v.to_le_bytes()));
+        }
+        knba.extend([0u32, 1, 8, 1].iter().flat_map(|v| v.to_le_bytes()));
+        knba.extend(words(&[0, 0, 0, 0, 3, 0xBEEF, 2, 1]));
+        let nmcr = nitro(b"RCMN", &[(b"KBCM", &kbcm)]);
+        let nanr = nitro(b"RNAN", &[(b"KNBA", &knba)]);
+        assert_eq!(first_frame(&nmcr, &nanr).unwrap(), [(3, -3, -39)]);
+        assert!(first_frame(&nmcr, &nanr[..40]).is_err());
+    }
 }

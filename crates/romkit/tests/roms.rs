@@ -761,6 +761,84 @@ fn species_form(species: u16, form: u8, all: &[n3ds::Species]) -> Option<&n3ds::
 }
 
 #[test]
+fn extracts_gen5_sprites() {
+    for path in gen5_dumps() {
+        let (name, sequel) = (name(&path), name(&path).contains("Version 2"));
+        let game = Gen5::open(open(&path)).unwrap();
+        let pikachu = SpeciesId(25);
+        for variant in Variant::ALL {
+            let sprite = game.pokemon_sprite(pikachu, 0, variant).unwrap();
+            assert_eq!((sprite.width, sprite.height), (96, 96), "{name}");
+            for (x, y) in [(0, 0), (95, 0), (0, 95), (95, 95)] {
+                assert_eq!(sprite.get(x, y).unwrap()[3], 0, "{name} {variant:?}");
+            }
+            assert!(yellow_share(&sprite) > 0.3, "{name} {variant:?}");
+        }
+        let shiny = game.pokemon_sprite(pikachu, 0, Variant::ALL[1]).unwrap();
+        assert_ne!(
+            shiny,
+            game.pokemon_sprite(pikachu, 0, Variant::ALL[0]).unwrap()
+        );
+        let icon = game.pokemon_icon(pikachu, 0, false).unwrap();
+        assert_eq!((icon.width, icon.height), (32, 32));
+        assert!(yellow_share(&icon) > 0.3, "{name}");
+        // Deoxys's Attack Forme is a sprite of its own; Arceus's forms are palettes only.
+        let deoxys = SpeciesId(386);
+        assert_ne!(
+            game.pokemon_sprite(deoxys, 1, Variant::ALL[0]).unwrap(),
+            game.pokemon_sprite(deoxys, 0, Variant::ALL[0]).unwrap()
+        );
+        assert!(
+            game.pokemon_sprite(SpeciesId(493), 1, Variant::ALL[0])
+                .is_err()
+        );
+        // The Master Ball's icon is mostly purple.
+        let ball = game.item_icon(gen5::ItemId(1)).unwrap();
+        let purple = ball
+            .pixels
+            .iter()
+            .filter(|[r, g, b, a]| *a != 0 && r > g && b > g)
+            .count();
+        assert!(purple > 100, "{name}: {purple} purple pixels");
+        // Every trainer class has a sprite, including those Black 2 and White 2 animate.
+        let trainer = game.trainer_sprite(if sequel { 7 } else { 0 }).unwrap();
+        assert_eq!((trainer.width, trainer.height), (80, 80));
+        assert!(trainer.pixels.iter().filter(|pixel| pixel[3] != 0).count() > 500);
+
+        let assets = game.assets().unwrap();
+        let count = |prefix: &str| {
+            assets
+                .iter()
+                .filter(|path| path.starts_with(prefix))
+                .count()
+        };
+        // Every species and its forms with sprites of their own.
+        let pokemon = if sequel { 715 } else { 709 };
+        assert_eq!(count("sprites/pokemon/front/"), pokemon, "{name}");
+        assert_eq!(count("sprites/pokemon/back-shiny/"), pokemon, "{name}");
+        assert_eq!(count("sprites/pokemon/front-female/"), 96, "{name}");
+        assert_eq!(count("sprites/icons/"), pokemon, "{name}");
+        assert_eq!(count("sprites/icons-female/"), 3, "{name}");
+        assert_eq!(count("sprites/trainers/"), if sequel { 188 } else { 95 });
+        assert_eq!(count("sprites/items/"), if sequel { 638 } else { 626 });
+        for asset in [
+            "sprites/pokemon/front-female/0025.png",
+            "sprites/pokemon/front/0201-27.png",
+            "sprites/icons-female/0592.png",
+        ] {
+            assert!(assets.contains(&asset.to_owned()), "{name}: {asset}");
+            assert!(game.extract(asset).is_ok());
+        }
+        assert!(
+            game.extract("sprites/pokemon/front-female/0029.png")
+                .is_err()
+        );
+        assert!(game.extract("sprites/pokemon/front/0025-0.png").is_err());
+        println!("{name}: {} sprites", count("sprites/"));
+    }
+}
+
+#[test]
 fn opens_every_dump_and_exports_supported_games() {
     for path in dumps() {
         let name = name(&path);
