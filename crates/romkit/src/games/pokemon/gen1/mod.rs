@@ -31,9 +31,13 @@ pub mod text;
 use std::borrow::Cow;
 use std::sync::OnceLock;
 
+pub(crate) use assets::sprite_path;
 pub use items::Item;
 pub use moves::Move;
+pub(crate) use moves::percent;
 pub use species::{Evolution, EvolutionMethod, Species, Stats};
+pub(crate) use species::{bits, parse_learnset};
+pub(crate) use sprites::in_front_box;
 use text::Charmap;
 
 /// Shared with Gen 4, whose records use the same values. A [`SpeciesId`] here is the National

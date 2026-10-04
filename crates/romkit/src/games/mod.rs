@@ -16,7 +16,7 @@ pub use catalog::GameId;
 use crate::Result;
 use crate::io::ByteSource;
 use crate::platforms::identify;
-use pokemon::{gen1, gen3, gen4, gen5, n3ds};
+use pokemon::{gen1, gen2, gen3, gen4, gen5, n3ds};
 
 /// A game romkit can extract, seen as a tree of asset files.
 ///
@@ -37,6 +37,7 @@ impl GameId {
     /// Whether romkit can extract this game.
     pub fn is_supported(self) -> bool {
         gen1::Edition::covers(self)
+            || gen2::Edition::covers(self)
             || gen3::Edition::covers(self)
             || gen4::Edition::of(self).is_some()
             || gen5::Edition::of(self).is_some()
@@ -49,6 +50,8 @@ impl GameId {
 pub fn open<'a>(game: GameId, source: impl ByteSource + 'a) -> Option<Result<Box<dyn Game + 'a>>> {
     if gen1::Edition::covers(game) {
         release(gen1::Gen1::open(source))
+    } else if gen2::Edition::covers(game) {
+        release(gen2::Gen2::open(source))
     } else if gen3::Edition::covers(game) {
         // Only the dumps whose tables are known: other languages and revisions are recognized
         // but not extracted.
