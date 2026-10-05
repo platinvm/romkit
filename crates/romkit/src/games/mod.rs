@@ -16,7 +16,7 @@ pub use catalog::GameId;
 use crate::Result;
 use crate::io::ByteSource;
 use crate::platforms::identify;
-use pokemon::{gen3, gen4, gen5, n3ds};
+use pokemon::{gen1, gen2, gen3, gen4, gen5, n3ds};
 
 /// A game romkit can extract, seen as a tree of asset files.
 ///
@@ -36,16 +36,23 @@ pub trait Game {
 impl GameId {
     /// Whether romkit can extract this game.
     pub fn is_supported(self) -> bool {
-        gen3::Edition::covers(self)
+        gen1::Edition::covers(self)
+            || gen2::Edition::covers(self)
+            || gen3::Edition::covers(self)
             || gen4::Edition::of(self).is_some()
             || gen5::Edition::of(self).is_some()
             || n3ds::Edition::of(self).is_some()
     }
 }
 
-/// The extractor for `game` over `source`, or `None` when the game is not supported.
+/// The extractor for `game` over `source`, or `None` when the game, or this release of it, is
+/// not supported.
 pub fn open<'a>(game: GameId, source: impl ByteSource + 'a) -> Option<Result<Box<dyn Game + 'a>>> {
-    if gen3::Edition::covers(game) {
+    if gen1::Edition::covers(game) {
+        release(gen1::Gen1::open(source))
+    } else if gen2::Edition::covers(game) {
+        release(gen2::Gen2::open(source))
+    } else if gen3::Edition::covers(game) {
         // Only the dumps whose tables are known: other languages and revisions are recognized
         // but not extracted.
         gen3::Edition::of(&identify(&source).ok()?)?;
@@ -58,6 +65,15 @@ pub fn open<'a>(game: GameId, source: impl ByteSource + 'a) -> Option<Result<Box
         Some(n3ds::N3ds::open(source).map(|game| Box::new(game) as _))
     } else {
         None
+    }
+}
+
+/// An opened Game Boy game, or `None` for a release without tables (another language or
+/// revision), which is then only identified.
+fn release<'a>(opened: Result<impl Game + 'a>) -> Option<Result<Box<dyn Game + 'a>>> {
+    match opened {
+        Err(crate::Error::Unsupported(_)) => None,
+        opened => Some(opened.map(|game| Box::new(game) as _)),
     }
 }
 
