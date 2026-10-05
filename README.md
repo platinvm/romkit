@@ -11,7 +11,7 @@ romkit is the shared core of two consumers:
 
 | Platform         | Identify | Browse files          | Extract data                                   |
 | ---------------- | -------- | --------------------- | ---------------------------------------------- |
-| Game Boy / Color | yes      |                       |                                                |
+| Game Boy / Color | yes      |                       | Pokémon Red, Blue, Yellow (USA/Europe), Green (Japan), Gold (USA/Europe), Crystal (USA) |
 | Game Boy Advance | yes      |                       | Pokémon Ruby, Sapphire, Emerald, FireRed, LeafGreen (USA) |
 | Nintendo DS      | yes      | NitroFS, NARC members | Pokémon Diamond, Pearl, Platinum, HeartGold, SoulSilver, Black, White, Black 2, White 2 |
 | Nintendo 3DS     | yes      | ExeFS, RomFS, GARC files | Pokémon X, Y, Omega Ruby, Alpha Sapphire, Sun, Moon, Ultra Sun, Ultra Moon |
@@ -45,6 +45,15 @@ National Pokédex number and the games' internal index), `moves.json`, `abilitie
 icons, 64×64 trainer sprites, 24×24 item icons (Emerald, FireRed, LeafGreen), and cries as
 `sound/cries/<species>.wav`, all keyed by National Pokédex number. GBA games have no filesystem,
 so each dump's `Edition` records where its tables are.
+
+Gen 1 and Gen 2 games extract `species.json` (stats, types, evolutions, level-up moves, TM/HM
+compatibility; Gen 1 adds the internal index and level-1 moves, Gen 2 egg moves and held items),
+`moves.json` (Gen 2 with descriptions), `items.json` (Gen 2 with descriptions and attributes),
+and Pokémon sprites colored with the palettes in the ROM: Gen 1 `front` (56×56) and `back`
+(32×32) in their Super Game Boy colors (Yellow: Game Boy Color), Gen 2 `front` and
+`front-shiny` (56×56), `back` and `back-shiny` (48×48). Names keep the games' upper case;
+Japanese Green decodes to kana. Releases are told apart by their header checksum, so other
+languages and revisions (and Silver, without a dump to verify) are identified but not extracted.
 
 The 3DS games (decrypted dumps) extract `species.json` (with alternate forms, hidden abilities,
 tutors, Z-Crystals), `moves.json` (battle data in detail, Z-Moves), `abilities.json`, and every
@@ -86,6 +95,9 @@ crates/
         catalog.rs       GameId: every recognized game and its header signature
         mod.rs           the Game trait, and open() to get a game's extractor
         sound.rs         any DS sound archive as assets
+        pokemon/gen1/    the Gen1 handle, the Edition table (bank:address of each table),
+                         species, moves, items, text charmaps, pic decompression, sprites
+        pokemon/gen2/    the same for Gold and Crystal, plus LZ decompression
         pokemon/gen3/    the Gen3 handle, the Edition table (table offsets), species, moves,
                          items, text, sprites, cries, assets
         pokemon/gen4/    the Gen4 handle, the Edition table, species, moves, text, sprites, sound,

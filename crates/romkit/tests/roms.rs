@@ -11,10 +11,12 @@ use romkit::formats::g2d::{Cells, Palette, Screen, Tiles};
 use romkit::formats::garc::Garc;
 use romkit::formats::sdat::Sdat;
 use romkit::formats::{Format, lz, narc::Narc};
+use romkit::games::pokemon::gen1::{self, Gen1};
+use romkit::games::pokemon::gen2::{self, Gen2};
 use romkit::games::pokemon::gen3::{self, Gen3};
 use romkit::games::pokemon::gen4::text::{Text, Token};
 use romkit::games::pokemon::gen4::{
-    Gen4, ItemId, ModelSet, MoveClass, SpeciesId, TextureSet, Type, Variant,
+    Gen4, ItemId, ModelSet, MoveClass, MoveId, SpeciesId, TextureSet, Type, Variant,
 };
 use romkit::games::pokemon::gen5::{self, Gen5};
 use romkit::games::pokemon::n3ds::{self, N3ds, TextSet};
@@ -1160,5 +1162,151 @@ fn extracts_gen5_sound() {
             assert!(title.starts_with(b"RIFF"));
         }
         println!("{}: {counts:?}", name(&path));
+    }
+}
+
+/// Game Boy dumps of `games`, by a word of their file name.
+fn gb_dumps(games: &'static [&str]) -> impl Iterator<Item = PathBuf> {
+    dumps().into_iter().filter(|path| {
+        let name = name(path);
+        (name.ends_with(".gb") || name.ends_with(".gbc")) && games.iter().any(|g| name.contains(g))
+    })
+}
+
+/// A Game Boy sprite's size and its share of transparent background. (Some sprites, like
+/// Golbat's, reach the corners.)
+fn check_gb_sprite(image: &Image, side: u32, what: &str) {
+    assert_eq!((image.width, image.height), (side, side), "{what}");
+    let clear = image.pixels.iter().filter(|pixel| pixel[3] == 0).count();
+    let share = clear as f64 / image.pixels.len() as f64;
+    assert!((0.25..0.95).contains(&share), "{what}: {share} transparent");
+}
+
+#[test]
+fn extracts_gen1_data_and_sprites() {
+    for path in gb_dumps(&["Red Version", "Blue Version", "Yellow Version", "Midori"]) {
+        let name = name(&path);
+        let game = Gen1::open(open(&path)).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let japanese = name.contains("Midori");
+        let species = game.species().unwrap();
+        assert_eq!(species.len(), 151, "{name}");
+        let pikachu = &species[24];
+        let expected = if japanese {
+            "ピカチュウ"
+        } else {
+            "PIKACHU"
+        };
+        assert_eq!((pikachu.name.as_str(), pikachu.index), (expected, 0x54));
+        assert_eq!(pikachu.types, [gen1::Type::Electric; 2]);
+        let stats = pikachu.base_stats;
+        assert_eq!(
+            (
+                stats.hp,
+                stats.attack,
+                stats.defense,
+                stats.speed,
+                stats.special
+            ),
+            (35, 55, 30, 90, 50)
+        );
+        assert_eq!(pikachu.evolutions[0].into, SpeciesId(26));
+        assert!(pikachu.machines.contains(&23), "TM24 Thunderbolt");
+        assert_eq!(species[150].name, if japanese { "ミュウ" } else { "MEW" });
+        // Charmander evolves at 16, Eevee by three stones, Kadabra by trade.
+        assert_eq!(
+            species[3].evolutions[0].method,
+            gen1::EvolutionMethod::Level { level: 16 }
+        );
+        assert_eq!(species[132].evolutions.len(), 3);
+        assert_eq!(
+            species[63].evolutions[0].method,
+            gen1::EvolutionMethod::Trade
+        );
+
+        let moves = game.moves().unwrap();
+        assert_eq!(moves.len(), 165);
+        let thunderbolt = &moves[84];
+        assert_eq!((thunderbolt.power, thunderbolt.accuracy), (95, 100));
+        assert_eq!(
+            (thunderbolt.r#type, thunderbolt.machine),
+            (gen1::Type::Electric, Some(23))
+        );
+        if !japanese {
+            assert_eq!(thunderbolt.name, "THUNDERBOLT");
+            assert_eq!(game.items().unwrap()[1].name, "ULTRA BALL");
+        }
+        assert_eq!(game.items().unwrap()[1].price, 1200);
+
+        for id in 1..=151 {
+            let front = game.pokemon_sprite(SpeciesId(id), false).unwrap();
+            check_gb_sprite(&front, 56, &format!("{name} front {id}"));
+            let back = game.pokemon_sprite(SpeciesId(id), true).unwrap();
+            assert_eq!((back.width, back.height), (32, 32));
+        }
+        assert!(yellow_share(&game.pokemon_sprite(SpeciesId(25), false).unwrap()) > 0.3);
+        println!("{name}: {} species, {} moves", species.len(), moves.len());
+    }
+}
+
+#[test]
+fn extracts_gen2_data_and_sprites() {
+    for path in gb_dumps(&["Gold Version", "Silver Version", "Crystal Version"]) {
+        let name = name(&path);
+        let game = Gen2::open(open(&path)).unwrap_or_else(|error| panic!("{name}: {error}"));
+        let species = game.species().unwrap();
+        assert_eq!(species.len(), 251);
+        let pikachu = &species[24];
+        assert_eq!(pikachu.name, "PIKACHU");
+        assert_eq!(pikachu.types, [gen2::Type::Electric; 2]);
+        let stats = pikachu.base_stats;
+        assert_eq!((stats.hp, stats.speed), (35, 90));
+        assert_eq!((stats.special_attack, stats.special_defense), (50, 40));
+        assert_eq!(
+            species[132].evolutions.len(),
+            5,
+            "Eevee: three stones, two times of day"
+        );
+        assert_eq!(
+            species[0].egg_moves.first(),
+            Some(&MoveId(0x71)),
+            "Light Screen"
+        );
+        assert_eq!(species[248].name, "LUGIA");
+        assert_eq!(species[249].types, [gen2::Type::Fire, gen2::Type::Flying]);
+
+        let moves = game.moves().unwrap();
+        let thunderbolt = &moves[84];
+        assert_eq!(
+            (thunderbolt.name.as_str(), thunderbolt.power),
+            ("THUNDERBOLT", 95)
+        );
+        assert_eq!(thunderbolt.effect_chance, 10);
+        assert_eq!(
+            thunderbolt.description,
+            "An attack that may\ncause paralysis."
+        );
+        let items = game.items().unwrap();
+        assert_eq!((items[17].name.as_str(), items[17].price), ("POTION", 300));
+        assert_eq!(items[0].pocket, gen2::Pocket::Balls);
+
+        for id in 1..=251 {
+            for (back, shiny) in [(false, false), (false, true), (true, false), (true, true)] {
+                let sprite = game.pokemon_sprite(SpeciesId(id), back, shiny).unwrap();
+                let side = if back { 48 } else { 56 };
+                check_gb_sprite(&sprite, side, &format!("{name} {id} back {back}"));
+            }
+        }
+        let pikachu = game.pokemon_sprite(SpeciesId(25), false, false).unwrap();
+        assert!(yellow_share(&pikachu) > 0.3, "{name}");
+        assert_ne!(
+            pikachu,
+            game.pokemon_sprite(SpeciesId(25), false, true).unwrap()
+        );
+        println!(
+            "{name}: {} species, {} moves, {} items",
+            species.len(),
+            moves.len(),
+            items.len()
+        );
     }
 }
