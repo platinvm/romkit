@@ -202,25 +202,34 @@ impl<'a> Rom<'a> {
         Ok(hasher.finalize())
     }
 
-    /// Extract every asset through `write(path, contents)`, then write a `manifest.json`
-    /// describing the ROM and the assets.
-    pub fn export(&self, mut write: impl FnMut(&str, &[u8]) -> Result<()>) -> Result<Manifest> {
-        let game = self
-            .game()
-            .ok_or_else(|| Error::Unsupported(format!("no extractor for {}", self.identity)))?;
-        let assets = game.assets()?;
-        for path in &assets {
-            write(path, &game.extract(path)?)?;
-        }
-        let manifest = Manifest {
+    /// What [`export`](Self::export) writes as `manifest.json`, for hosts that extract the
+    /// assets one at a time.
+    pub fn manifest(&self) -> Result<Manifest> {
+        let game = self.extractor()?;
+        Ok(Manifest {
             romkit: env!("CARGO_PKG_VERSION"),
             game: game.id(),
             identity: self.identity.clone(),
             crc32: format!("{:08x}", self.crc32()?),
-            assets,
-        };
+            assets: game.assets()?,
+        })
+    }
+
+    /// Extract every asset through `write(path, contents)`, then write a `manifest.json`
+    /// describing the ROM and the assets.
+    pub fn export(&self, mut write: impl FnMut(&str, &[u8]) -> Result<()>) -> Result<Manifest> {
+        let game = self.extractor()?;
+        let manifest = self.manifest()?;
+        for path in &manifest.assets {
+            write(path, &game.extract(path)?)?;
+        }
         write("manifest.json", &games::json(&manifest)?)?;
         Ok(manifest)
+    }
+
+    fn extractor(&self) -> Result<&dyn Game> {
+        self.game()
+            .ok_or_else(|| Error::Unsupported(format!("no extractor for {}", self.identity)))
     }
 
     fn container(&self) -> Result<&Container<'a>> {

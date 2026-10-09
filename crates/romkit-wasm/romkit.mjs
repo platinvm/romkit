@@ -70,5 +70,7 @@ export async function load(wasm, readAt) {
     extract: (path) => call("romkit_extract", path).files[0].data,
     /** Every asset plus the manifest: {value: manifest, files: [{path, data}]}. */
     export: () => call("romkit_export"),
+    /** The manifest `export` ends with: {value: manifest, files: [manifest.json]}. */
+    manifest: () => call("romkit_manifest"),
   };
 }

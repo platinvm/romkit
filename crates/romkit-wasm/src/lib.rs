@@ -15,6 +15,7 @@
 //! | `romkit_assets()`             | `[path]`                                 |
 //! | `romkit_extract(path)`        | asset emitted; its size                  |
 //! | `romkit_export()`             | every asset emitted; the manifest        |
+//! | `romkit_manifest()`           | `manifest.json` emitted; the manifest    |
 //!
 //! Strings are passed as UTF-8 in memory from `romkit_alloc` (pointer, length). Sizes are `f64`
 //! so that JavaScript numbers pass as they are. Host functions must not call back into romkit.
@@ -199,6 +200,16 @@ pub unsafe extern "C" fn romkit_extract(path: *const u8, len: usize) -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn romkit_export() -> i32 {
     with_rom(|rom| rom.export(emit))
+}
+
+/// The manifest [`romkit_export`] ends with, for hosts that extract assets one at a time.
+#[unsafe(no_mangle)]
+pub extern "C" fn romkit_manifest() -> i32 {
+    with_rom(|rom| {
+        let manifest = rom.manifest()?;
+        emit("manifest.json", &serde_json::to_vec_pretty(&manifest)?)?;
+        Ok(manifest)
+    })
 }
 
 fn game<'r>(rom: &'r Rom<'static>) -> Result<&'r dyn romkit::Game> {
