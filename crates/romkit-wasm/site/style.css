@@ -1,0 +1,274 @@
+:root {
+  --bg: #fbfbfa;
+  --fg: #1d1d1f;
+  --muted: #6b6b70;
+  --line: #dddcd8;
+  --panel: #ffffff;
+  --accent: #c0392b;
+  --accent-fg: #ffffff;
+  --hover: #f0efeb;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151517;
+    --fg: #ececee;
+    --muted: #9a9aa2;
+    --line: #2e2e33;
+    --panel: #1d1d20;
+    --accent: #e0584a;
+    --accent-fg: #ffffff;
+    --hover: #26262a;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 24px 16px 48px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+header p,
+.muted,
+footer {
+  color: var(--muted);
+}
+
+a {
+  color: var(--accent);
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 24px 0 8px;
+  padding: 32px 16px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: center;
+  cursor: pointer;
+}
+
+.drop.over,
+.drop:hover {
+  border-color: var(--accent);
+}
+
+.drop small {
+  color: var(--muted);
+}
+
+#status {
+  min-height: 1.5em;
+}
+
+#status.error {
+  color: var(--accent);
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+button {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+progress {
+  flex: 1;
+  min-width: 120px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+}
+
+.tabs button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.browser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+  .browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+#filter {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+}
+
+#count {
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+#entries {
+  max-height: 60vh;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  list-style: none;
+}
+
+#entries li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  cursor: pointer;
+}
+
+#entries li:hover,
+#entries li.selected {
+  background: var(--hover);
+}
+
+#entries li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#entries li small {
+  flex: none;
+  color: var(--muted);
+}
+
+.preview {
+  min-height: 200px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: auto;
+}
+
+.preview h2 {
+  margin: 0 0 8px;
+  font: 600 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.preview img {
+  max-width: 100%;
+  image-rendering: pixelated;
+  min-width: 96px;
+  background: repeating-conic-gradient(var(--hover) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+
+.preview audio {
+  width: 100%;
+}
+
+.preview pre {
+  max-height: 50vh;
+  margin: 0;
+  overflow: auto;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.preview pre.hex {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+footer {
+  margin-top: 32px;
+  font-size: 13px;
+}
+
+[hidden] {
+  display: none !important;
+}

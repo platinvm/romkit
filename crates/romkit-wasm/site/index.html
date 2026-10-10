@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>romkit</title>
+    <meta name="description" content="Identify Game Boy, GBA, DS and 3DS ROMs and export their data and assets, in your browser." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='1' width='12' height='14' rx='2' fill='%23c0392b'/%3E%3Crect x='4' y='3' width='8' height='6' rx='1' fill='%23fff'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>romkit</h1>
+      <p>Identify Game Boy, GBA, DS, and 3DS ROMs and export their data and assets.
+        The ROM is read in place by your browser and never uploaded.</p>
+    </header>
+
+    <main>
+      <label id="drop" class="drop">
+        <input id="pick" type="file" hidden />
+        <strong>Drop a ROM here</strong> or click to choose one
+        <small>.gb .gbc .gba .nds .3ds (decrypted)</small>
+      </label>
+
+      <p id="status" role="status"></p>
+
+      <section id="rom" hidden>
+        <dl id="overview"></dl>
+
+        <div id="exports" class="actions" hidden>
+          <button id="export-folder" type="button" hidden>Export all to a folder…</button>
+          <button id="export-zip" type="button">Download all as .zip</button>
+          <progress id="progress" hidden></progress>
+        </div>
+
+        <nav class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="assets">Assets</button>
+          <button type="button" role="tab" data-tab="files">Files</button>
+        </nav>
+
+        <div class="browser">
+          <div class="list">
+            <input id="filter" type="search" placeholder="Filter, e.g. sprites/pokemon/front/025" autocomplete="off" />
+            <p id="count" class="muted"></p>
+            <ul id="entries"></ul>
+          </div>
+          <div id="preview" class="preview">
+            <p class="muted">Select an entry to preview it.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a href="https://github.com/platinvm/romkit">Source and command-line tool on GitHub</a>
+      · <span id="version"></span>
+    </footer>
+  </body>
+</html>
