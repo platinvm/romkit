@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy --target wasm32-unknown-unknown
+          rustup default stable
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy -p romkit-wasm --target wasm32-unknown-unknown --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - name: Build the CLI
+        run: cargo build --release --locked -p romkit-cli
+      - name: Build the wasm module
+        run: cargo build --release --locked -p romkit-wasm --target wasm32-unknown-unknown

@@ -1,0 +1,114 @@
+# Push a tag matching the workspace version (v0.1.0 for version = "0.1.0") to publish a GitHub
+# release with the CLI for each platform and the wasm module with its JS host.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the tag against the workspace version
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "romkit") | .version')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the workspace version $version"
+            exit 1
+          fi
+
+  cli:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          - { target: x86_64-apple-darwin, os: macos-latest }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-pc-windows-msvc, os: windows-11-arm }
+    runs-on: ${{ matrix.os }}
+    env:
+      NAME: romkit-${{ github.ref_name }}-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+      - name: Build
+        run: cargo build --release --locked -p romkit-cli --target ${{ matrix.target }}
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir "$NAME"
+          cp "target/${{ matrix.target }}/release/romkit" README.md "$NAME/"
+          tar -czf "$NAME.tar.gz" "$NAME"
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory $env:NAME
+          Copy-Item "target/${{ matrix.target }}/release/romkit.exe", README.md $env:NAME
+          Compress-Archive $env:NAME "$env:NAME.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.*
+          if-no-files-found: error
+
+  wasm:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      NAME: romkit-wasm-${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Build
+        run: cargo build --release --locked -p romkit-wasm --target wasm32-unknown-unknown
+      - name: Package
+        run: |
+          mkdir "$NAME"
+          cp target/wasm32-unknown-unknown/release/romkit_wasm.wasm "$NAME/romkit.wasm"
+          cp crates/romkit-wasm/romkit.mjs "$NAME/"
+          tar -czf "$NAME.tar.gz" "$NAME"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [cli, wasm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" --title "romkit ${GITHUB_REF_NAME#v}" --generate-notes
