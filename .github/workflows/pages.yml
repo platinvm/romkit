@@ -1,0 +1,55 @@
+# The website: crates/romkit-wasm/site with the wasm module and its JS host, deployed to GitHub
+# Pages on each push to main, or by hand. (The github-pages environment only accepts the default
+# branch unless its deployment rules are changed.)
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Build the wasm module
+        run: cargo build --release --locked -p romkit-wasm --target wasm32-unknown-unknown
+      - name: Assemble the site
+        run: |
+          cp -r crates/romkit-wasm/site _site
+          cp crates/romkit-wasm/romkit.mjs _site/
+          cp target/wasm32-unknown-unknown/release/romkit_wasm.wasm _site/romkit.wasm
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "romkit") | .version' > _site/version.txt
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
