@@ -107,7 +107,7 @@ crates/
       rom.rs             Rom: any ROM, for hosts that take whatever they are given
     tests/roms.rs        checks against real dumps
   romkit-cli/            the romkit command-line tool
-  romkit-wasm/           the wasm build for the website, and romkit.mjs, a minimal JS host
+  romkit-wasm/           the wasm build, romkit.mjs (a minimal JS host), and site/, the website
 ```
 
 The root `Cargo.toml` holds what the crates share: versions, dependency versions, and the build
@@ -180,6 +180,16 @@ const overview = romkit.open(file.size);
 const species = JSON.parse(new TextDecoder().decode(romkit.extract("species.json")));
 ```
 
+The website in `crates/romkit-wasm/site` is static files around that worker. To try it locally,
+put the module and the host beside it and serve the folder:
+
+```sh
+cp -r crates/romkit-wasm/site /tmp/romkit-site
+cp crates/romkit-wasm/romkit.mjs /tmp/romkit-site/
+cp target/wasm32-unknown-unknown/release/romkit_wasm.wasm /tmp/romkit-site/romkit.wasm
+python3 -m http.server -d /tmp/romkit-site
+```
+
 ## Adding a game
 
 1. **Recognize it**: add a row to the catalog in `crates/romkit/src/games/catalog.rs`.
@@ -199,3 +209,20 @@ ROMKIT_ROMS=~/roms cargo test -p romkit --test roms -- --nocapture  # every dump
 ```
 
 ROM dumps are never committed; without `ROMKIT_ROMS` the real-dump tests pass vacuously.
+
+## Release
+
+CI (`.github/workflows/ci.yml`) checks formatting, lints, tests, and builds the CLI and the wasm
+module on every push to `main` and every pull request.
+
+To release, bump `version` in the root `Cargo.toml`, commit, and push a matching tag:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+- `release.yml` builds the CLI for Linux (static musl), macOS, and Windows, on x86-64 and ARM64,
+  plus the wasm module with `romkit.mjs`, and publishes them as a GitHub release with
+  `SHA256SUMS`.
+- `pages.yml` builds the wasm module and deploys the website to GitHub Pages on every push to
+  `main`. It can also be run by hand from the Actions tab.
