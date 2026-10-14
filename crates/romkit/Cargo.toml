@@ -5,6 +5,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["rom", "pokemon", "nintendo-ds", "3ds", "game-boy"]
+categories = ["emulators", "parser-implementations", "game-development", "multimedia"]
 
 [dependencies]
 crc32fast.workspace = true

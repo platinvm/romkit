@@ -7,9 +7,12 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/platinvm/romkit"
+homepage = "https://platinvm.github.io/romkit/"
 
 [workspace.dependencies]
-romkit = { path = "crates/romkit" }
+# Keep the version in step with [workspace.package]: it is what romkit-cli requires on crates.io.
+romkit = { path = "crates/romkit", version = "0.1.0" }
 clap = { version = "4.6.6", features = ["derive"] }
 crc32fast = "1.5.2"
 gltf = { version = "1.4.1", default-features = false, features = ["utils", "KHR_materials_unlit"] }

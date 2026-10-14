@@ -153,16 +153,19 @@ if let Some(game) = rom.game() {
 rom.export(|path, contents| { /* store each asset, then manifest.json */ Ok(()) })?;
 ```
 
-From the command line:
+From the command line, after `cargo install romkit-cli` (or with a binary from the GitHub
+releases):
 
 ```sh
-cargo run --release -p romkit-cli -- game.nds                   # what is it?
-cargo run --release -p romkit-cli -- game.nds files [archive]   # files, or archive members
-cargo run --release -p romkit-cli -- game.nds read path --member 3
-cargo run --release -p romkit-cli -- game.nds assets
-cargo run --release -p romkit-cli -- game.nds extract species.json
-cargo run --release -p romkit-cli -- game.nds export out/
+romkit game.nds                   # what is it?
+romkit game.nds files [archive]   # files, or archive members
+romkit game.nds read path --member 3
+romkit game.nds assets
+romkit game.nds extract species.json
+romkit game.nds export out/
 ```
+
+From a checkout, `cargo run --release -p romkit-cli --` stands in for `romkit`.
 
 In a browser, build the wasm module and load it in a Web Worker with
 `crates/romkit-wasm/romkit.mjs`:
@@ -215,14 +218,15 @@ ROM dumps are never committed; without `ROMKIT_ROMS` the real-dump tests pass va
 CI (`.github/workflows/ci.yml`) checks formatting, lints, tests, and builds the CLI and the wasm
 module on every push to `main` and every pull request.
 
-To release, bump `version` in the root `Cargo.toml`, commit, and push a matching tag:
+To release, bump `version` in the root `Cargo.toml` (both `[workspace.package]` and the `romkit`
+entry of `[workspace.dependencies]`), commit, and push a matching tag:
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
 - `release.yml` builds the CLI for Linux (static musl), macOS, and Windows, on x86-64 and ARM64,
-  plus the wasm module with `romkit.mjs`, and publishes them as a GitHub release with
-  `SHA256SUMS`.
+  plus the wasm module with `romkit.mjs`; publishes `romkit` and `romkit-cli` to crates.io
+  through Trusted Publishing; then publishes the GitHub release with `SHA256SUMS`.
 - `pages.yml` builds the wasm module and deploys the website to GitHub Pages on every push to
   `main`. It can also be run by hand from the Actions tab.
