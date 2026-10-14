@@ -28,3 +28,5 @@ jobs:
         run: cargo build --release --locked -p romkit-cli
       - name: Build the wasm module
         run: cargo build --release --locked -p romkit-wasm --target wasm32-unknown-unknown
+      - name: Check that the crates package for crates.io
+        run: cargo publish --workspace --dry-run --locked

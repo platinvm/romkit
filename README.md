@@ -227,6 +227,6 @@ git tag v0.1.0 && git push origin v0.1.0
 
 - `release.yml` builds the CLI for Linux (static musl), macOS, and Windows, on x86-64 and ARM64,
   plus the wasm module with `romkit.mjs`; publishes `romkit` and `romkit-cli` to crates.io
-  through Trusted Publishing; then publishes the GitHub release with `SHA256SUMS`.
+  with the `CARGO_REGISTRY_TOKEN` secret of the `crates-io` environment; then publishes the GitHub release with `SHA256SUMS`.
 - `pages.yml` builds the wasm module and deploys the website to GitHub Pages on every push to
   `main`. It can also be run by hand from the Actions tab.
